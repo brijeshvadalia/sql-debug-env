@@ -1,0 +1,131 @@
+name: sql-debug-env
+version: "1.0.0"
+description: >
+  A real-world OpenEnv environment where AI agents learn to debug, fix, and
+  optimize SQL queries against a realistic e-commerce database. Agents must
+  diagnose query failures, correct logic errors, and rewrite slow queries for
+  performance — skills directly applicable to data engineering, analytics
+  engineering, and database administration workflows.
+
+author: scaler-hackathon
+tags:
+  - openenv
+  - sql
+  - debugging
+  - data-engineering
+  - real-world
+  - database
+
+license: apache-2.0
+python_requires: ">=3.10"
+
+tasks:
+  - id: fix_syntax_error
+    name: "Fix SQL Syntax Error"
+    difficulty: easy
+    description: >
+      The agent receives a SQL query with one or more syntax errors. It must
+      identify and fix the errors so the query executes successfully and returns
+      the correct result set. Graded on execution success and output correctness.
+    max_steps: 5
+    reward_threshold: 0.8
+
+  - id: fix_logic_error
+    name: "Fix SQL Logic / Join Error"
+    difficulty: medium
+    description: >
+      The agent receives a syntactically valid but semantically incorrect SQL
+      query (wrong JOIN type, wrong aggregation column, missing GROUP BY, or
+      incorrect filter). It must diagnose the semantic error and rewrite the
+      query to return the correct result set. Graded on row-level correctness.
+    max_steps: 8
+    reward_threshold: 0.7
+
+  - id: optimize_query
+    name: "Optimize Slow SQL Query"
+    difficulty: hard
+    description: >
+      The agent receives a functionally correct but extremely inefficient SQL
+      query (N+1 subqueries, missing indexes hint via EXPLAIN, Cartesian joins).
+      It must rewrite the query to produce identical results with significantly
+      reduced execution time. Graded on both correctness (60%) and speedup (40%).
+      Hard task: frontier models must reason about query planning, not just syntax.
+    max_steps: 10
+    reward_threshold: 0.6
+
+action_space:
+  type: object
+  description: >
+    Agent submits a SQL query to execute against the environment database,
+    plus optional chain-of-thought reasoning.
+  required:
+    - sql_query
+  properties:
+    sql_query:
+      type: string
+      description: The SQL query to execute against the environment SQLite database.
+    reasoning:
+      type: string
+      nullable: true
+      description: >
+        Optional chain-of-thought reasoning from the agent before issuing
+        the query. Not evaluated but stored for analysis.
+
+observation_space:
+  type: object
+  description: >
+    Full state returned to the agent after each reset() or step() call.
+  properties:
+    task_id:
+      type: string
+      description: Identifier of the active task.
+    task_description:
+      type: string
+      description: Human-readable description of what the agent must accomplish.
+    broken_query:
+      type: string
+      description: The original broken/slow query the agent must fix or optimize.
+    schema_hint:
+      type: string
+      description: >
+        DDL and sample data hint for the tables involved. Gives the agent
+        context to reason about the query.
+    error_message:
+      type: string
+      nullable: true
+      description: SQLite error message from the last executed query, if any.
+    query_result:
+      type: array
+      nullable: true
+      description: Up to 20 rows returned from the last executed query.
+      items:
+        type: object
+    execution_time_ms:
+      type: number
+      nullable: true
+      description: Wall-clock execution time of last query in milliseconds.
+    reward_breakdown:
+      type: object
+      nullable: true
+      description: Structured reward breakdown for interpretability.
+      properties:
+        correctness:
+          type: number
+        efficiency:
+          type: number
+        step_penalty:
+          type: number
+        explanation:
+          type: string
+    step_count:
+      type: integer
+      description: Number of steps taken in the current episode.
+    max_steps:
+      type: integer
+      description: Maximum steps allowed before episode truncation.
+    done:
+      type: boolean
+      description: Whether the episode has ended (success or truncation).
+    reward:
+      type: number
+      description: Scalar reward for the last action, range 0.0–1.0.

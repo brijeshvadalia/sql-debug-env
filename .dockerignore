@@ -1,0 +1,37 @@
+# Version control
+.git
+.gitignore
+
+# Python artifacts
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+dist/
+build/
+.eggs/
+
+# Dev / test
+.venv
+venv
+.pytest_cache
+.ruff_cache
+.mypy_cache
+tests/
+outputs/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Docs (not needed in container)
+*.md
+!README.md
+
+# OS
+.DS_Store
+Thumbs.db

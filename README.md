@@ -1,3 +1,10 @@
+title: SQL Debug Env
+emoji: 🛠️
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+
 # 🛠️ SQL Debug Environment
 
 [![OpenEnv](https://img.shields.io/badge/openenv-compatible-brightgreen)](https://github.com/meta-pytorch/OpenEnv)

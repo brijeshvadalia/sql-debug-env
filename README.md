@@ -1,3 +1,12 @@
+---
+title: SQL Debug Env
+emoji: 🛠️
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
+
 title: SQL Debug Env
 emoji: 🛠️
 colorFrom: blue

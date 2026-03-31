@@ -63,11 +63,17 @@ class SQLAction(BaseModel):
 class RewardBreakdown(BaseModel):
     """Detailed decomposition of the reward signal."""
 
+    total: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Total reward score (0.0-1.0).",
+    )
     correctness: float = Field(
         default=0.0,
         ge=0.0,
         le=1.0,
-        description="Fraction of expected rows correctly returned (0.0–1.0).",
+        description="Fraction of expected rows correctly returned (0.0-1.0).",
     )
     efficiency: float = Field(
         default=0.0,

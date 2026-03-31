@@ -116,6 +116,75 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # - Homepage --------------------------------------------------------------
+
+    @app.get("/", tags=["meta"])
+    async def homepage():
+        from fastapi.responses import HTMLResponse
+        html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>SQL Debug Environment</title>
+            <style>
+                body { font-family: Arial, sans-serif; max-width: 800px; margin: 80px auto; padding: 20px; background: #f5f5f5; }
+                h1 { color: #2d6a4f; }
+                .badge { display: inline-block; background: #52b788; color: white; padding: 4px 12px; border-radius: 20px; font-size: 14px; margin: 4px; }
+                .card { background: white; padding: 20px; border-radius: 10px; margin: 16px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+                .endpoint { font-family: monospace; background: #e8f5e9; padding: 8px 14px; border-radius: 6px; margin: 6px 0; display: block; }
+                a { color: #2d6a4f; text-decoration: none; font-weight: bold; }
+                a:hover { text-decoration: underline; }
+                .task { padding: 10px; border-left: 4px solid #52b788; margin: 8px 0; background: #f8f9fa; border-radius: 0 6px 6px 0; }
+            </style>
+        </head>
+        <body>
+            <h1>🛠️ SQL Debug Environment</h1>
+            <p>
+                <span class="badge">✅ Running</span>
+                <span class="badge">OpenEnv Compatible</span>
+                <span class="badge">Real-World AI Training</span>
+            </p>
+
+            <div class="card">
+                <h2>📖 About</h2>
+                <p>A real-world OpenEnv environment where AI agents learn to <strong>debug, fix, and optimize SQL queries</strong> against a realistic e-commerce database.</p>
+                <p>Built for the <strong>Scaler × Meta PyTorch OpenEnv Hackathon 2026</strong>.</p>
+            </div>
+
+            <div class="card">
+                <h2>🎮 Tasks</h2>
+                <div class="task"><strong>🟢 Easy</strong> — Fix SQL Syntax Error (fix_syntax_error)</div>
+                <div class="task"><strong>🟡 Medium</strong> — Fix SQL Logic / Join Error (fix_logic_error)</div>
+                <div class="task"><strong>🔴 Hard</strong> — Optimize Slow SQL Query (optimize_query)</div>
+            </div>
+
+            <div class="card">
+                <h2>🔗 API Endpoints</h2>
+                <span class="endpoint">POST /reset — Start a new episode</span>
+                <span class="endpoint">POST /step  — Submit a SQL query</span>
+                <span class="endpoint">GET  /state — Get episode state</span>
+                <span class="endpoint">GET  /tasks — List all tasks</span>
+                <span class="endpoint">GET  /health — Health check</span>
+            </div>
+
+            <div class="card">
+                <h2>🚀 Quick Links</h2>
+                <p><a href="/docs">📚 Interactive API Docs (Swagger)</a></p>
+                <p><a href="/health">💚 Health Check</a></p>
+                <p><a href="/tasks">📋 View All Tasks</a></p>
+                <p><a href="/state">📊 Current State</a></p>
+            </div>
+
+            <div class="card">
+                <h2>⚡ Quick Start</h2>
+                <p>1. Call <code>/reset</code> with a task_id to start an episode</p>
+                <p>2. Call <code>/step</code> with your SQL fix to get a reward</p>
+                <p>3. Repeat until <code>done=true</code></p>
+            </div>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html)
 
     # ── Health ──────────────────────────────────────────────────────────────
 

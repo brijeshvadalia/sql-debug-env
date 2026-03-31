@@ -1,5 +1,5 @@
 name: sql-debug-env
-version: "1.0.0"
+version: "2.0.0"
 description: >
   A real-world OpenEnv environment where AI agents learn to debug, fix, and
   optimize SQL queries against a realistic e-commerce database. Agents must
@@ -50,6 +50,47 @@ tasks:
       It must rewrite the query to produce identical results with significantly
       reduced execution time. Graded on both correctness (60%) and speedup (40%).
       Hard task: frontier models must reason about query planning, not just syntax.
+    max_steps: 10
+    reward_threshold: 0.6
+
+  - id: fix_null_handling
+    name: "Fix NULL Handling in Aggregation"
+    difficulty: medium
+    description: >
+      Fix INNER JOIN that drops products with no reviews,
+      and AVG returning NULL instead of 0.0 for unreviewed products.
+    max_steps: 6
+    reward_threshold: 0.75
+
+  - id: fix_subquery_bug
+    name: "Fix Correlated Subquery Bug"
+    difficulty: medium
+    description: >
+      Fix alias shadowing bug in nested subquery causing wrong HAVING results.
+    max_steps: 6
+    reward_threshold: 0.75
+
+  - id: fix_window_function
+    name: "Fix Window Function (RANK)"
+    difficulty: hard
+    description: >
+      Fix ROW_NUMBER to RANK and wrong PARTITION BY column in window function.
+    max_steps: 8
+    reward_threshold: 0.7
+
+  - id: fix_cte
+    name: "Fix CTE (Common Table Expression)"
+    difficulty: hard
+    description: >
+      Fix division error in CTE that always returns 100% instead of real percentage.
+    max_steps: 8
+    reward_threshold: 0.7
+
+  - id: multi_step_aggregation
+    name: "Multi-Dimension Sales Report"
+    difficulty: expert
+    description: >
+      Complete a multi-dimension aggregation query missing GROUP BY and avg_order_value.
     max_steps: 10
     reward_threshold: 0.6
 

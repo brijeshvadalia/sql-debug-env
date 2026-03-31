@@ -402,7 +402,8 @@ TASK_WINDOW = Task(
         "Frank Brown excluded (no non-cancelled orders)"
     ),
     max_steps=8,
-    reward_threshold=0.7,
+    reward_threshold=0.6,
+    baseline_exec_ms=5.0,
     tags=["window-function","rank","partition","hard"],
 )
 
@@ -479,7 +480,8 @@ TASK_CTE = Task(
         "Grand total revenue ~5604.81. Frank Brown excluded."
     ),
     max_steps=8,
-    reward_threshold=0.7,
+    reward_threshold=0.6,
+    baseline_exec_ms=5.0,
     tags=["cte","percentage","hard"],
 )
 

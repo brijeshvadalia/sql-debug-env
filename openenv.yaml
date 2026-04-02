@@ -1,172 +1,224 @@
 name: sql-debug-env
-version: "2.0.0"
+version: "3.0.0"
 description: >
   A real-world OpenEnv environment where AI agents learn to debug, fix, and
-  optimize SQL queries against a realistic e-commerce database. Agents must
-  diagnose query failures, correct logic errors, and rewrite slow queries for
-  performance — skills directly applicable to data engineering, analytics
-  engineering, and database administration workflows.
+  optimize SQL queries against a realistic e-commerce database. Features 8 tasks
+  across easy/medium/hard/expert difficulties, multi-turn conversation memory,
+  a 3-level hint system with reward penalties, EXPLAIN query plan analysis,
+  curriculum auto-advancement, model leaderboard, and batch evaluation.
+  Built for the Scaler x Meta PyTorch OpenEnv Hackathon 2026.
 
-author: scaler-hackathon
+author: Brijesh8128
 tags:
   - openenv
   - sql
   - debugging
   - data-engineering
   - real-world
-  - database
+  - curriculum-learning
+  - multi-turn
 
 license: apache-2.0
-python_requires: ">=3.10"
+python_requires: ">=3.11"
 
 tasks:
   - id: fix_syntax_error
     name: "Fix SQL Syntax Error"
     difficulty: easy
     description: >
-      The agent receives a SQL query with one or more syntax errors. It must
-      identify and fix the errors so the query executes successfully and returns
-      the correct result set. Graded on execution success and output correctness.
+      Agent receives a SQL query with 3 misspelled keywords (SELEC, FORM, ORDR BY)
+      and must fix them to retrieve VIP-tier customers ordered by name.
     max_steps: 5
     reward_threshold: 0.8
+    tags: [syntax, beginner, keywords]
 
   - id: fix_logic_error
     name: "Fix SQL Logic / Join Error"
     difficulty: medium
     description: >
-      The agent receives a syntactically valid but semantically incorrect SQL
-      query (wrong JOIN type, wrong aggregation column, missing GROUP BY, or
-      incorrect filter). It must diagnose the semantic error and rewrite the
-      query to return the correct result set. Graded on row-level correctness.
+      Query uses INNER JOIN (drops orders with no items) and sums the wrong column
+      (orders.total_amount instead of SUM(oi.quantity * oi.unit_price)). Agent must
+      fix both bugs to return all 11 orders with correct computed totals.
     max_steps: 8
     reward_threshold: 0.7
-
-  - id: optimize_query
-    name: "Optimize Slow SQL Query"
-    difficulty: hard
-    description: >
-      The agent receives a functionally correct but extremely inefficient SQL
-      query (N+1 subqueries, missing indexes hint via EXPLAIN, Cartesian joins).
-      It must rewrite the query to produce identical results with significantly
-      reduced execution time. Graded on both correctness (60%) and speedup (40%).
-      Hard task: frontier models must reason about query planning, not just syntax.
-    max_steps: 10
-    reward_threshold: 0.6
+    tags: [join, aggregation, logic]
 
   - id: fix_null_handling
     name: "Fix NULL Handling in Aggregation"
     difficulty: medium
     description: >
-      Fix INNER JOIN that drops products with no reviews,
-      and AVG returning NULL instead of 0.0 for unreviewed products.
+      INNER JOIN excludes products with no reviews, and AVG() returns NULL instead
+      of 0.0 for unreviewed products. Agent must use LEFT JOIN and COALESCE.
     max_steps: 6
     reward_threshold: 0.75
+    tags: [null, coalesce, left-join]
 
   - id: fix_subquery_bug
-    name: "Fix Correlated Subquery Bug"
+    name: "Fix Correlated Subquery Alias Bug"
     difficulty: medium
     description: >
-      Fix alias shadowing bug in nested subquery causing wrong HAVING results.
+      Alias 'oi' is reused in the inner subquery, shadowing the outer query alias
+      and producing wrong HAVING results. Agent must rename inner alias to 'oi2'.
     max_steps: 6
     reward_threshold: 0.75
+    tags: [subquery, alias, having]
+
+  - id: optimize_query
+    name: "Optimize Slow SQL Query (N+1)"
+    difficulty: hard
+    description: >
+      Two correlated scalar subqueries re-scan tables for every customer row (N+1
+      pattern). Agent must rewrite as a single LEFT JOIN plus GROUP BY for linear
+      time complexity. Graded 60% correctness + 40% speedup vs baseline.
+    max_steps: 10
+    reward_threshold: 0.6
+    tags: [performance, n+1, optimization]
 
   - id: fix_window_function
     name: "Fix Window Function (RANK)"
     difficulty: hard
     description: >
-      Fix ROW_NUMBER to RANK and wrong PARTITION BY column in window function.
+      ROW_NUMBER() used instead of RANK(), and PARTITION BY uses wrong column
+      (tier instead of region). Agent must fix both to rank customers correctly
+      within each geographic region.
     max_steps: 8
-    reward_threshold: 0.7
+    reward_threshold: 0.6
+    tags: [window-function, rank, partition]
 
   - id: fix_cte
     name: "Fix CTE (Common Table Expression)"
     difficulty: hard
     description: >
-      Fix division error in CTE that always returns 100% instead of real percentage.
+      CTE divides total_revenue by itself (always 100%). Agent must use the grand
+      total subquery: ROUND(total_revenue * 100.0 / (SELECT SUM(total_revenue)
+      FROM customer_revenue), 2) as the correct percentage calculation.
     max_steps: 8
-    reward_threshold: 0.7
+    reward_threshold: 0.6
+    tags: [cte, percentage, subquery]
 
   - id: multi_step_aggregation
     name: "Multi-Dimension Sales Report"
     difficulty: expert
     description: >
-      Complete a multi-dimension aggregation query missing GROUP BY and avg_order_value.
+      Query missing GROUP BY clause and uses 0 for avg_order_value. Agent must add
+      GROUP BY p.category, c.tier and compute real average order value using
+      ROUND(SUM(...) / COUNT(DISTINCT o.id), 2). Returns 7-row category x tier report.
     max_steps: 10
     reward_threshold: 0.6
+    tags: [aggregation, group-by, multi-dimension, expert]
+
+advanced_features:
+  multi_turn_memory:
+    enabled: true
+    description: >
+      Every observation includes conversation_history with last 5 steps
+      (SQL query, error, reward, result_count). Enables agents to learn
+      from failed attempts within the same episode.
+
+  hint_system:
+    enabled: true
+    endpoint: POST /hint
+    levels: 3
+    penalty_per_hint: 0.10
+    max_penalty: 0.30
+    description: >
+      Progressive 3-level hints with reward penalties. Level 1 gives general
+      direction, Level 2 identifies the specific bug, Level 3 gives exact fix.
+
+  query_analysis:
+    enabled: true
+    description: >
+      Every step() response includes query_analysis with EXPLAIN QUERY PLAN
+      summary: scan_count, uses_index, tables_scanned, plan_steps, suggestion.
+
+  curriculum_learning:
+    enabled: true
+    endpoint: GET /curriculum
+    advance_threshold: 0.8
+    advance_episodes: 3
+    order: [fix_syntax_error, fix_logic_error, fix_null_handling,
+            fix_subquery_bug, optimize_query, fix_window_function,
+            fix_cte, multi_step_aggregation]
+    description: >
+      Auto-advances easy -> medium -> hard -> expert when agent achieves
+      average score >= 0.8 over 3 consecutive episodes.
+
+  leaderboard:
+    enabled: true
+    endpoints:
+      - GET /leaderboard
+      - POST /leaderboard/submit
+
+  batch_evaluation:
+    enabled: true
+    endpoint: POST /evaluate/batch
+    description: >
+      Score any SQL query against all 8 tasks in a single API call.
 
 action_space:
   type: object
-  description: >
-    Agent submits a SQL query to execute against the environment database,
-    plus optional chain-of-thought reasoning.
-  required:
-    - sql_query
+  required: [sql_query]
   properties:
     sql_query:
       type: string
-      description: The SQL query to execute against the environment SQLite database.
+      description: SQL query to execute against the environment SQLite database.
     reasoning:
       type: string
       nullable: true
-      description: >
-        Optional chain-of-thought reasoning from the agent before issuing
-        the query. Not evaluated but stored for analysis.
+      description: Optional chain-of-thought (logged, not evaluated).
 
 observation_space:
   type: object
-  description: >
-    Full state returned to the agent after each reset() or step() call.
   properties:
     task_id:
       type: string
-      description: Identifier of the active task.
     task_description:
       type: string
-      description: Human-readable description of what the agent must accomplish.
     broken_query:
       type: string
-      description: The original broken/slow query the agent must fix or optimize.
     schema_hint:
       type: string
-      description: >
-        DDL and sample data hint for the tables involved. Gives the agent
-        context to reason about the query.
     error_message:
       type: string
       nullable: true
-      description: SQLite error message from the last executed query, if any.
     query_result:
       type: array
       nullable: true
-      description: Up to 20 rows returned from the last executed query.
-      items:
-        type: object
     execution_time_ms:
       type: number
       nullable: true
-      description: Wall-clock execution time of last query in milliseconds.
+    reward:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
     reward_breakdown:
       type: object
       nullable: true
-      description: Structured reward breakdown for interpretability.
       properties:
-        correctness:
-          type: number
-        efficiency:
-          type: number
-        step_penalty:
-          type: number
-        explanation:
-          type: string
+        total: {type: number}
+        correctness: {type: number}
+        efficiency: {type: number}
+        step_penalty: {type: number}
+        explanation: {type: string}
+    conversation_history:
+      type: array
+      description: Last 5 steps with sql, error, reward, result_count.
+    query_analysis:
+      type: object
+      nullable: true
+      properties:
+        scan_count: {type: integer}
+        uses_index: {type: boolean}
+        tables_scanned: {type: array}
+        plan_steps: {type: integer}
+        suggestion: {type: string}
+    hint_available:
+      type: boolean
+    hints_used:
+      type: integer
     step_count:
       type: integer
-      description: Number of steps taken in the current episode.
     max_steps:
       type: integer
-      description: Maximum steps allowed before episode truncation.
     done:
       type: boolean
-      description: Whether the episode has ended (success or truncation).
-    reward:
-      type: number
-      description: Scalar reward for the last action, range 0.0–1.0.

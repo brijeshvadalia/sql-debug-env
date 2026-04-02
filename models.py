@@ -1,14 +1,11 @@
 """
-models.py — Typed Pydantic models for the SQL Debug Environment.
+models.py — Typed Pydantic models for the SQL Debug Environment v3.0
 
-Defines the three core model types required by OpenEnv:
-  - SQLAction     → what the agent sends
-  - SQLObservation → what the environment returns
-  - SQLState      → episode metadata (returned by state())
-
-All fields are explicitly typed and documented for OpenEnv spec compliance.
+Advanced features added:
+  - conversation_history: multi-turn memory in every observation
+  - query_analysis: EXPLAIN plan summary
+  - hint_available / hints_used: hint system state
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -21,76 +18,72 @@ from pydantic import BaseModel, Field
 # ---------------------------------------------------------------------------
 
 class SQLAction(BaseModel):
-    """
-    Action submitted by the agent each step.
-
-    The agent must provide a SQL query to execute against the environment's
-    SQLite database. Optionally, it may provide chain-of-thought reasoning
-    which is logged but not evaluated.
-    """
+    """Action submitted by the agent each step."""
 
     sql_query: str = Field(
         ...,
         description="SQL query to execute against the environment database.",
-        examples=[
-            "SELECT id, name FROM customers WHERE region = 'EU' ORDER BY name;",
-            "SELECT o.id, SUM(oi.quantity * oi.unit_price) AS total FROM orders o "
-            "JOIN order_items oi ON o.id = oi.order_id GROUP BY o.id;",
-        ],
     )
     reasoning: Optional[str] = Field(
         default=None,
         description="Optional chain-of-thought reasoning (logged, not evaluated).",
     )
 
-    def __init__(self, **data) -> None:
+    def __init__(self, **data: Any) -> None:
         data.setdefault("reasoning", None)
         super().__init__(**data)
 
     class Config:
         json_schema_extra = {
             "example": {
-                "sql_query": "SELECT id, name FROM customers ORDER BY name;",
-                "reasoning": "The original query had a missing semicolon.",
+                "sql_query": "SELECT id, name, email FROM customers WHERE tier = 'vip' ORDER BY name;",
+                "reasoning": "Fixed all three typos in the keywords.",
             }
         }
 
 
 # ---------------------------------------------------------------------------
-# Reward breakdown (structured for interpretability)
+# Reward breakdown
 # ---------------------------------------------------------------------------
 
 class RewardBreakdown(BaseModel):
     """Detailed decomposition of the reward signal."""
 
-    total: float = Field(
-        default=0.0,
-        ge=0.0,
-        le=1.0,
-        description="Total reward score (0.0-1.0).",
-    )
-    correctness: float = Field(
-        default=0.0,
-        ge=0.0,
-        le=1.0,
-        description="Fraction of expected rows correctly returned (0.0-1.0).",
-    )
-    efficiency: float = Field(
-        default=0.0,
-        ge=0.0,
-        le=1.0,
-        description="Query efficiency score (only non-zero for optimize_query task).",
-    )
-    step_penalty: float = Field(
-        default=1.0,
-        ge=0.0,
-        le=1.0,
-        description="Multiplier penalising wasted steps (1.0 = no penalty).",
-    )
-    explanation: str = Field(
-        default="",
-        description="Human-readable explanation of the reward components.",
-    )
+    total: float = Field(default=0.0, ge=0.0, le=1.0)
+    correctness: float = Field(default=0.0, ge=0.0, le=1.0)
+    efficiency: float = Field(default=0.0, ge=0.0, le=1.0)
+    step_penalty: float = Field(default=1.0, ge=0.0, le=1.0)
+    explanation: str = Field(default="")
+
+    def __init__(self, **data: Any) -> None:
+        data.setdefault("total", 0.0)
+        data.setdefault("correctness", 0.0)
+        data.setdefault("efficiency", 0.0)
+        data.setdefault("step_penalty", 1.0)
+        data.setdefault("explanation", "")
+        super().__init__(**data)
+
+
+# ---------------------------------------------------------------------------
+# Query analysis (EXPLAIN output)
+# ---------------------------------------------------------------------------
+
+class QueryAnalysis(BaseModel):
+    """Structured summary of EXPLAIN QUERY PLAN output."""
+
+    scan_count: int = Field(default=0, description="Number of full table scans.")
+    uses_index: bool = Field(default=False, description="Whether any index is used.")
+    tables_scanned: list[str] = Field(default_factory=list)
+    plan_steps: int = Field(default=0)
+    suggestion: str = Field(default="", description="Performance suggestion.")
+
+    def __init__(self, **data: Any) -> None:
+        data.setdefault("scan_count", 0)
+        data.setdefault("uses_index", False)
+        data.setdefault("tables_scanned", [])
+        data.setdefault("plan_steps", 0)
+        data.setdefault("suggestion", "")
+        super().__init__(**data)
 
 
 # ---------------------------------------------------------------------------
@@ -101,105 +94,72 @@ class SQLObservation(BaseModel):
     """
     Observation returned by the environment after reset() and each step().
 
-    Contains everything the agent needs to reason about its next action:
-    the task description, the broken query, schema context, the result of
-    its last SQL execution, and the current reward.
+    Advanced fields:
+      conversation_history : last 5 turns with SQL, error, reward
+      query_analysis       : EXPLAIN plan summary
+      hint_available       : whether hints remain unused
+      hints_used           : how many hints taken this episode
     """
 
-    # ── Task context ────────────────────────────────────────────────────────
-    task_id: str = Field(
-        ...,
-        description="Identifier of the active task.",
-        examples=["fix_syntax_error", "fix_logic_error", "optimize_query"],
-    )
-    task_description: str = Field(
-        ...,
-        description="Full description of what the agent must accomplish.",
-    )
-    broken_query: str = Field(
-        ...,
-        description="The original broken or slow query the agent must fix.",
-    )
-    schema_hint: str = Field(
-        ...,
-        description="DDL snippet + example rows for relevant tables.",
+    # Task context
+    task_id: str = Field(..., description="Active task identifier.")
+    task_description: str = Field(..., description="Full task description.")
+    broken_query: str = Field(..., description="Original broken/slow query.")
+    schema_hint: str = Field(..., description="DDL + sample data context.")
+
+    # Execution feedback
+    error_message: Optional[str] = Field(default=None)
+    query_result: Optional[list[dict[str, Any]]] = Field(default=None)
+    execution_time_ms: Optional[float] = Field(default=None)
+
+    # Reward
+    reward: float = Field(default=0.0, ge=0.0, le=1.0)
+    reward_breakdown: Optional[RewardBreakdown] = Field(default=None)
+
+    # Advanced: multi-turn memory
+    conversation_history: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Last 5 steps: sql, error, reward, result_count.",
     )
 
-    # ── Execution feedback ──────────────────────────────────────────────────
-    error_message: Optional[str] = Field(
+    # Advanced: query analysis
+    query_analysis: Optional[QueryAnalysis] = Field(
         default=None,
-        description="SQLite error from the last query execution, if any.",
-    )
-    query_result: Optional[list[dict[str, Any]]] = Field(
-        default=None,
-        description="Up to 20 rows from the last query execution.",
-    )
-    execution_time_ms: Optional[float] = Field(
-        default=None,
-        description="Wall-clock execution time of the last query (ms).",
+        description="EXPLAIN QUERY PLAN summary.",
     )
 
-    # ── Reward signal ───────────────────────────────────────────────────────
-    reward: float = Field(
-        default=0.0,
-        ge=0.0,
-        le=1.0,
-        description="Scalar reward for the last action.",
-    )
-    reward_breakdown: Optional[RewardBreakdown] = Field(
-        default=None,
-        description="Detailed reward decomposition.",
-    )
+    # Advanced: hint system
+    hint_available: bool = Field(default=True)
+    hints_used: int = Field(default=0)
 
-    # ── Episode metadata ────────────────────────────────────────────────────
-    step_count: int = Field(default=0, description="Steps taken this episode.")
-    max_steps: int = Field(default=10, description="Maximum steps before truncation.")
-    done: bool = Field(default=False, description="Whether episode has ended.")
+    # Episode metadata
+    step_count: int = Field(default=0)
+    max_steps: int = Field(default=10)
+    done: bool = Field(default=False)
 
     def __init__(self, **data: Any) -> None:
-        # Explicit defaults — works with Pydantic v1, v2, and test stubs
         data.setdefault("error_message", None)
         data.setdefault("query_result", None)
         data.setdefault("execution_time_ms", None)
         data.setdefault("reward", 0.0)
         data.setdefault("reward_breakdown", None)
+        data.setdefault("conversation_history", [])
+        data.setdefault("query_analysis", None)
+        data.setdefault("hint_available", True)
+        data.setdefault("hints_used", 0)
         data.setdefault("step_count", 0)
         data.setdefault("done", False)
         data.setdefault("max_steps", 10)
         super().__init__(**data)
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "task_id": "fix_syntax_error",
-                "task_description": "Fix the syntax error in the SQL query.",
-                "broken_query": "SELEC id, name FORM customers;",
-                "schema_hint": "TABLE customers(id INTEGER, name TEXT, region TEXT)",
-                "error_message": 'near "FORM": syntax error',
-                "query_result": None,
-                "execution_time_ms": None,
-                "reward": 0.0,
-                "reward_breakdown": None,
-                "step_count": 1,
-                "max_steps": 5,
-                "done": False,
-            }
-        }
-
 
 # ---------------------------------------------------------------------------
-# State (episode metadata — returned by state())
+# State
 # ---------------------------------------------------------------------------
 
 @dataclass
 class SQLState:
-    """
-    Episode-level metadata returned by the environment's state() property.
-
-    OpenEnv requires state() to return current episode info including
-    episode_id and step_count at minimum.
-    """
-
+    """Episode-level metadata returned by state() property."""
     episode_id: str = ""
     step_count: int = 0
     task_id: str = ""

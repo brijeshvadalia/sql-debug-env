@@ -3,101 +3,197 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>SQL Debug — Visual Tester</title>
+<title>SQL Debug Environment v3.0 — Visual Tester</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
 a{color:#60a5fa;text-decoration:none}a:hover{text-decoration:underline}
-.topbar{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
-.topbar-title{font-size:15px;font-weight:600;color:#f1f5f9}
-.topbar-links{display:flex;gap:16px;font-size:13px}
+
+/* Topbar */
+.topbar{background:#1e293b;border-bottom:1px solid #334155;padding:11px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.topbar-title{font-size:14px;font-weight:600;color:#f1f5f9;display:flex;align-items:center;gap:8px}
+.live{width:8px;height:8px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.topbar-links{display:flex;gap:14px;font-size:12px;flex-wrap:wrap}
+
+/* Tabs */
+.tabs{display:flex;gap:2px;background:#1e293b;padding:8px 20px;border-bottom:1px solid #334155;overflow-x:auto}
+.tab{padding:7px 16px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:transparent;color:#64748b;white-space:nowrap;transition:all .15s}
+.tab:hover{color:#94a3b8;background:#273548}
+.tab.active{background:#1e3a5f;color:#60a5fa;border:1px solid #1e40af}
+
+/* Container */
 .container{max-width:1200px;margin:0 auto;padding:20px}
-.task-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+.pane{display:none}.pane.active{display:block}
+
+/* Task grid */
+.task-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
 @media(max-width:680px){.task-grid{grid-template-columns:repeat(2,1fr)}}
-.task-btn{padding:12px 8px;border:1px solid #334155;border-radius:10px;background:#1e293b;cursor:pointer;text-align:center;transition:all .15s;user-select:none}
+.task-btn{padding:10px 6px;border:1px solid #334155;border-radius:9px;background:#1e293b;cursor:pointer;text-align:center;transition:all .15s;user-select:none}
 .task-btn:hover{border-color:#475569;background:#273548}
 .task-btn.active{border-color:#3b82f6;background:#1e3a5f}
-.task-name{font-size:12px;font-weight:500;color:#f1f5f9;margin-bottom:6px;line-height:1.3}
-.diff-badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600}
+.task-name{font-size:11px;font-weight:500;color:#f1f5f9;margin-bottom:5px;line-height:1.3}
+.diff-badge{display:inline-block;font-size:10px;padding:2px 6px;border-radius:10px;font-weight:600}
 .easy{background:#166534;color:#86efac}.medium{background:#92400e;color:#fde68a}
 .hard{background:#7f1d1d;color:#fca5a5}.expert{background:#4c1d95;color:#c4b5fd}
-.url-bar{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px 14px;font-size:12px;color:#94a3b8;font-family:monospace;margin-bottom:14px;display:flex;align-items:center;gap:8px;word-break:break-all}
-.dot{width:8px;height:8px;border-radius:50%;background:#475569;flex-shrink:0}
-.dot.green{background:#22c55e}.dot.orange{background:#f59e0b}.dot.red{background:#ef4444}
-.panel{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
-@media(max-width:680px){.panel{grid-template-columns:1fr}}
-.box{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px}
-.lbl{font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}
-.sql-show{background:#0f172a;border:1px solid #1e293b;border-radius:7px;padding:10px;font-family:monospace;font-size:11.5px;color:#a5f3fc;white-space:pre-wrap;word-break:break-all;max-height:150px;overflow-y:auto;line-height:1.65}
-.schema-show{background:#0f172a;border:1px solid #1e293b;border-radius:7px;padding:9px;font-family:monospace;font-size:11px;color:#94a3b8;white-space:pre-wrap;max-height:80px;overflow-y:auto;line-height:1.55;margin-top:9px}
-.sql-edit{font-family:monospace;font-size:12px;width:100%;border:1px solid #334155;border-radius:7px;padding:10px;background:#0f172a;color:#e2e8f0;resize:vertical;min-height:135px;line-height:1.65;outline:none}
+
+/* URL bar */
+.url-bar{background:#1e293b;border:1px solid #334155;border-radius:7px;padding:7px 12px;font-size:11px;color:#94a3b8;font-family:monospace;margin-bottom:12px;display:flex;align-items:center;gap:7px;word-break:break-all}
+.dot{width:7px;height:7px;border-radius:50%;background:#475569;flex-shrink:0}
+.dot.g{background:#22c55e}.dot.o{background:#f59e0b}.dot.r{background:#ef4444}
+
+/* Panels */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+@media(max-width:680px){.two-col{grid-template-columns:1fr}}
+.box{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:14px}
+.lbl{font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+
+/* SQL display */
+.sql-show{background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:10px;font-family:monospace;font-size:11.5px;color:#a5f3fc;white-space:pre-wrap;word-break:break-all;max-height:140px;overflow-y:auto;line-height:1.65}
+.schema-show{background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:8px;font-family:monospace;font-size:10.5px;color:#94a3b8;white-space:pre-wrap;max-height:75px;overflow-y:auto;line-height:1.55;margin-top:8px}
+
+/* SQL input */
+.sql-edit{font-family:monospace;font-size:12px;width:100%;border:1px solid #334155;border-radius:6px;padding:10px;background:#0f172a;color:#e2e8f0;resize:vertical;min-height:120px;line-height:1.65;outline:none}
 .sql-edit:focus{border-color:#3b82f6}
-.btn-row{display:flex;gap:8px;margin:9px 0 6px}
-.btn{padding:9px 14px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid;transition:all .15s}
+
+/* Buttons */
+.btn-row{display:flex;gap:6px;margin:8px 0 5px;flex-wrap:wrap}
+.btn{padding:7px 12px;border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid;transition:all .15s}
 .btn:active{transform:scale(.98)}
-.btn-go{background:#1e3a5f;border-color:#3b82f6;color:#93c5fd;flex:1}
+.btn-go{background:#1e3a5f;border-color:#3b82f6;color:#93c5fd;flex:1;min-width:120px}
 .btn-go:hover{background:#1d4ed8;color:#fff}
-.btn-ans{background:#1c1917;border-color:#78350f;color:#fbbf24;font-size:12px}
+.btn-ans{background:#1c1917;border-color:#78350f;color:#fbbf24;font-size:11px}
 .btn-ans:hover{background:#78350f;color:#fff}
-.btn-reset{background:#1e293b;border-color:#334155;color:#94a3b8;font-size:12px}
-.btn-reset:hover{background:#334155;color:#e2e8f0}
-.step-info{font-size:12px;color:#64748b}
+.btn-hint{background:#1e1b4b;border-color:#4338ca;color:#a5b4fc;font-size:11px}
+.btn-hint:hover{background:#4338ca;color:#fff}
+.btn-reset{background:#1e293b;border-color:#334155;color:#94a3b8;font-size:11px}
+.btn-reset:hover{background:#334155}
+.step-info{font-size:11px;color:#64748b;margin-top:4px}
 .step-info b{color:#94a3b8}
-.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
-.metric{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px;text-align:center}
-.metric-v{font-size:22px;font-weight:600;color:#f1f5f9}
-.metric-l{font-size:11px;color:#64748b;margin-top:2px}
-.bar-wrap{margin-bottom:10px}
-.bar-row{display:flex;justify-content:space-between;font-size:12px;color:#64748b;margin-bottom:4px}
-.bar-bg{background:#1e293b;border-radius:4px;height:9px;overflow:hidden}
-.bar-fill{height:9px;border-radius:4px;transition:width .4s ease,background .3s}
-.smsg{margin-bottom:9px;font-size:13px;line-height:1.55}
-.ok{background:#14532d;border-left:4px solid #22c55e;padding:9px 13px;border-radius:0 7px 7px 0;color:#86efac}
-.err{background:#450a0a;border-left:4px solid #ef4444;padding:9px 13px;border-radius:0 7px 7px 0;color:#fca5a5}
-.info{background:#172554;border-left:4px solid #3b82f6;padding:9px 13px;border-radius:0 7px 7px 0;color:#93c5fd}
-.warn{background:#431407;border-left:4px solid #f59e0b;padding:9px 13px;border-radius:0 7px 7px 0;color:#fde68a}
-.expl{font-size:11px;color:#64748b;font-family:monospace;background:#0f172a;padding:7px 11px;border-radius:6px;border:1px solid #1e293b;margin-bottom:9px;word-break:break-all}
-.tbl-wrap{background:#1e293b;border:1px solid #334155;border-radius:10px;overflow:hidden;max-height:210px;overflow-y:auto;margin-bottom:12px}
-.rtbl{width:100%;border-collapse:collapse;font-size:12px}
-.rtbl th{background:#0f172a;padding:7px 9px;text-align:left;font-size:10.5px;font-weight:600;color:#64748b;border-bottom:1px solid #334155;white-space:nowrap}
-.rtbl td{padding:6px 9px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-family:monospace;font-size:11px}
+
+/* Metrics */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+@media(max-width:500px){.metrics{grid-template-columns:repeat(2,1fr)}}
+.metric{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px;text-align:center}
+.metric-v{font-size:20px;font-weight:700;color:#f1f5f9}
+.metric-l{font-size:10px;color:#64748b;margin-top:2px}
+
+/* Bars */
+.bar-wrap{margin-bottom:8px}
+.bar-row{display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-bottom:3px}
+.bar-bg{background:#1e293b;border-radius:3px;height:8px;overflow:hidden}
+.bar-fill{height:8px;border-radius:3px;transition:width .4s ease,background .3s}
+
+/* Status messages */
+.smsg{margin-bottom:8px;font-size:12px;line-height:1.5}
+.ok{background:#14532d;border-left:3px solid #22c55e;padding:8px 12px;border-radius:0 6px 6px 0;color:#86efac}
+.err{background:#450a0a;border-left:3px solid #ef4444;padding:8px 12px;border-radius:0 6px 6px 0;color:#fca5a5}
+.info{background:#172554;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;color:#93c5fd}
+.warn{background:#431407;border-left:3px solid #f59e0b;padding:8px 12px;border-radius:0 6px 6px 0;color:#fde68a}
+.hint-msg{background:#1e1b4b;border-left:3px solid #6366f1;padding:8px 12px;border-radius:0 6px 6px 0;color:#a5b4fc;margin-bottom:8px;font-size:12px}
+
+/* Explanation */
+.expl{font-size:11px;color:#64748b;font-family:monospace;background:#0f172a;padding:7px 10px;border-radius:5px;border:1px solid #1e293b;margin-bottom:8px;word-break:break-all}
+
+/* Query analysis */
+.analysis-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.analysis-pill{font-size:11px;padding:3px 8px;border-radius:10px;font-weight:500}
+.analysis-ok{background:#14532d;color:#86efac}
+.analysis-warn{background:#7c2d12;color:#fed7aa}
+.analysis-info{background:#1e3a8a;color:#93c5fd}
+
+/* Result table */
+.tbl-wrap{background:#1e293b;border:1px solid #334155;border-radius:8px;overflow:hidden;max-height:200px;overflow-y:auto;margin-bottom:10px}
+.rtbl{width:100%;border-collapse:collapse;font-size:11px}
+.rtbl th{background:#0f172a;padding:6px 8px;text-align:left;font-size:10px;font-weight:600;color:#64748b;border-bottom:1px solid #334155;white-space:nowrap}
+.rtbl td{padding:5px 8px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-family:monospace;font-size:10.5px}
 .rtbl tr:last-child td{border-bottom:none}
 .rtbl tr:hover td{background:#273548}
-.hist-box{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:10px}
-.hist-item{display:flex;align-items:center;gap:9px;padding:5px 0;border-bottom:1px solid #1e293b;font-size:12px}
+
+/* History */
+.hist-box{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px;max-height:200px;overflow-y:auto}
+.hist-item{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #1e293b;font-size:11px}
 .hist-item:last-child{border-bottom:none}
-.hs{color:#64748b;min-width:48px;font-size:11px}
-.hsql{flex:1;font-family:monospace;font-size:10.5px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hrw{font-weight:600;min-width:44px;text-align:right;font-size:12px}
-.hdone{font-size:10px;background:#14532d;color:#86efac;padding:2px 6px;border-radius:10px}
+.hs{color:#64748b;min-width:44px;font-size:10px}
+.hsql{flex:1;font-family:monospace;font-size:10px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hrw{font-weight:600;min-width:40px;text-align:right;font-size:11px}
+.hdone{font-size:9px;background:#14532d;color:#86efac;padding:1px 5px;border-radius:8px}
+.hhint{font-size:9px;background:#1e1b4b;color:#a5b4fc;padding:1px 5px;border-radius:8px}
+
+/* Curriculum */
+.curr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.curr-card{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:12px}
+.curr-card.current{border-color:#3b82f6;background:#1e3a5f}
+.curr-card.mastered{border-color:#166534;background:#052e16}
+.curr-prog{display:flex;align-items:center;gap:6px;margin-top:6px}
+.curr-bar{flex:1;background:#0f172a;border-radius:3px;height:6px;overflow:hidden}
+.curr-bar-fill{height:6px;border-radius:3px;background:#22c55e}
+
+/* Leaderboard */
+.lb-table{width:100%;border-collapse:collapse}
+.lb-table th{background:#0f172a;padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:1px solid #334155}
+.lb-table td{padding:8px 10px;border-bottom:1px solid #1e293b;font-size:12px}
+.lb-table tr:hover td{background:#273548}
+.rank-1{color:#fbbf24;font-weight:700}
+.rank-2{color:#94a3b8;font-weight:600}
+.rank-3{color:#b45309;font-weight:600}
+
+/* Hint counter */
+.hint-counter{display:flex;gap:4px;align-items:center;margin-bottom:6px}
+.hint-dot{width:10px;height:10px;border-radius:50%;border:1px solid #334155}
+.hint-dot.used{background:#6366f1;border-color:#6366f1}
+.hint-dot.available{background:#1e1b4b;border-color:#4338ca}
+
+/* Empty state */
 .empty{text-align:center;padding:40px 20px;color:#475569}
-.empty-icon{font-size:36px;margin-bottom:10px}
-.section-title{font-size:13px;font-weight:600;color:#94a3b8;margin-bottom:8px}
+
+/* Section title */
+.sec-title{font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+
+/* Tags */
+.tag{display:inline-block;font-size:10px;padding:2px 6px;border-radius:8px;background:#1e293b;color:#64748b;border:1px solid #334155;margin:2px}
 </style>
 </head>
 <body>
 
 <div class="topbar">
-  <div class="topbar-title">SQL Debug Environment — Visual Tester</div>
+  <div class="topbar-title">
+    <div class="live"></div>
+    SQL Debug Environment v3.0 — Visual Tester
+  </div>
   <div class="topbar-links">
     <a href="/">Home</a>
     <a href="/docs">API Docs</a>
     <a href="/tasks">Tasks</a>
     <a href="/stats">Stats</a>
-    <a href="/history">History</a>
+    <a href="/leaderboard">Leaderboard</a>
+    <a href="/curriculum">Curriculum</a>
   </div>
 </div>
 
+<div class="tabs">
+  <button class="tab active" onclick="showPane('tester')">Tester</button>
+  <button class="tab" onclick="showPane('curriculum')">Curriculum</button>
+  <button class="tab" onclick="showPane('leaderboard')">Leaderboard</button>
+  <button class="tab" onclick="showPane('batch')">Batch Evaluate</button>
+  <button class="tab" onclick="showPane('history')">History</button>
+</div>
+
+<!-- ================================================================= -->
+<!-- TESTER PANE                                                         -->
+<!-- ================================================================= -->
 <div class="container">
+<div class="pane active" id="pane-tester">
+
   <div class="task-grid" id="taskGrid"></div>
 
   <div class="url-bar">
     <div class="dot" id="dot"></div>
-    <span id="urlText">Select a task above to begin testing</span>
+    <span id="urlText">Select a task above to begin</span>
   </div>
 
   <div id="mainPanel" style="display:none">
-    <div class="panel">
+    <div class="two-col">
       <div class="box">
         <div class="lbl">Broken query — what the agent receives</div>
         <div class="sql-show" id="brokenQ"></div>
@@ -105,22 +201,35 @@ a{color:#60a5fa;text-decoration:none}a:hover{text-decoration:underline}
         <div class="schema-show" id="schemaH"></div>
       </div>
       <div class="box">
-        <div class="lbl">Your SQL fix — edit and submit</div>
+        <div class="lbl">Your SQL fix</div>
         <textarea class="sql-edit" id="sqlIn" placeholder="Write your corrected SQL here..."></textarea>
         <div class="btn-row">
-          <button class="btn btn-go" onclick="submitStep()">Submit to environment</button>
-          <button class="btn btn-ans" onclick="fillAnswer()">Show answer</button>
+          <button class="btn btn-go" onclick="submitStep()">Submit</button>
+          <button class="btn btn-ans" onclick="fillAnswer()">Answer</button>
+          <button class="btn btn-hint" onclick="getHint()" id="hintBtn">Hint</button>
           <button class="btn btn-reset" onclick="resetTask()">Reset</button>
         </div>
-        <div class="step-info">Step <b id="sNum">0</b> / <b id="sMax">0</b> &nbsp;&nbsp; Episode: <b id="epId" style="font-family:monospace;font-size:10px">—</b></div>
+        <div class="hint-counter" id="hintCounter">
+          <span style="font-size:10px;color:#64748b;margin-right:2px">Hints:</span>
+          <div class="hint-dot available" id="hd1"></div>
+          <div class="hint-dot available" id="hd2"></div>
+          <div class="hint-dot available" id="hd3"></div>
+          <span style="font-size:10px;color:#64748b;margin-left:4px" id="penaltyLabel"></span>
+        </div>
+        <div class="step-info">Step <b id="sNum">0</b>/<b id="sMax">0</b> &nbsp; Episode: <b id="epId" style="font-family:monospace;font-size:10px">—</b></div>
       </div>
+    </div>
+
+    <div id="hintArea" style="display:none;margin-bottom:8px">
+      <div class="hint-msg" id="hintText"></div>
     </div>
 
     <div id="resultArea" style="display:none">
       <div class="metrics">
-        <div class="metric"><div class="metric-v" id="rVal">—</div><div class="metric-l">Total Reward</div></div>
+        <div class="metric"><div class="metric-v" id="rVal">—</div><div class="metric-l">Reward</div></div>
         <div class="metric"><div class="metric-v" id="cVal">—</div><div class="metric-l">Correctness</div></div>
         <div class="metric"><div class="metric-v" id="eVal">—</div><div class="metric-l">Efficiency</div></div>
+        <div class="metric"><div class="metric-v" id="msVal">—</div><div class="metric-l">Exec (ms)</div></div>
       </div>
       <div class="bar-wrap">
         <div class="bar-row"><span>Reward</span><span id="rPct">0%</span></div>
@@ -132,21 +241,108 @@ a{color:#60a5fa;text-decoration:none}a:hover{text-decoration:underline}
       </div>
       <div id="smsg" class="smsg"></div>
       <div id="expl" class="expl" style="display:none"></div>
+      <div id="analysisRow" class="analysis-row" style="display:none"></div>
       <div id="tblWrap" class="tbl-wrap" style="display:none"></div>
     </div>
 
     <div id="histSec" style="display:none;margin-top:8px">
-      <div class="section-title">Step history this episode</div>
+      <div class="sec-title">Step history</div>
       <div class="hist-box" id="histList"></div>
     </div>
   </div>
 
   <div id="emptyState" class="empty">
-    <div class="empty-icon">&#8593;</div>
+    <div style="font-size:32px;margin-bottom:10px">↑</div>
     <div style="font-size:14px;font-weight:500;color:#64748b;margin-bottom:6px">Select a task to start</div>
-    <div style="font-size:13px;color:#475569">Click any task above — the broken query loads automatically and you can submit fixes and see rewards in real time</div>
+    <div style="font-size:12px;color:#475569">Click any task button — the broken query loads automatically</div>
+  </div>
+
+</div><!-- end tester pane -->
+
+<!-- ================================================================= -->
+<!-- CURRICULUM PANE                                                     -->
+<!-- ================================================================= -->
+<div class="pane" id="pane-curriculum">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div>
+      <div style="font-size:16px;font-weight:600;color:#f1f5f9;margin-bottom:4px">Curriculum Progress</div>
+      <div style="font-size:12px;color:#64748b">Auto-advances when avg score ≥ 0.8 over 3 episodes</div>
+    </div>
+    <button class="btn btn-go" style="flex:none;min-width:140px" onclick="loadCurriculum()">Refresh</button>
+  </div>
+  <div id="currContent">
+    <div class="empty"><div style="font-size:13px;color:#475569">Click Refresh to load curriculum status</div></div>
   </div>
 </div>
+
+<!-- ================================================================= -->
+<!-- LEADERBOARD PANE                                                    -->
+<!-- ================================================================= -->
+<div class="pane" id="pane-leaderboard">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div>
+      <div style="font-size:16px;font-weight:600;color:#f1f5f9;margin-bottom:4px">Model Leaderboard</div>
+      <div style="font-size:12px;color:#64748b">Compare how different models perform across all 8 tasks</div>
+    </div>
+    <button class="btn btn-go" style="flex:none;min-width:140px" onclick="loadLeaderboard()">Refresh</button>
+  </div>
+  <div id="lbContent">
+    <div class="empty"><div style="font-size:13px;color:#475569">Click Refresh to load leaderboard</div></div>
+  </div>
+  <div style="margin-top:20px">
+    <div class="sec-title">Submit your model scores</div>
+    <div class="box">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <div class="lbl">Model name</div>
+          <input id="lbModel" type="text" placeholder="e.g. Qwen2.5-72B" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:7px 10px;color:#e2e8f0;font-size:12px;outline:none">
+        </div>
+        <div>
+          <div class="lbl">Mean score (0.0–1.0)</div>
+          <input id="lbScore" type="number" min="0" max="1" step="0.001" placeholder="e.g. 0.942" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:7px 10px;color:#e2e8f0;font-size:12px;outline:none">
+        </div>
+      </div>
+      <button class="btn btn-go" style="min-width:160px" onclick="submitLeaderboard()">Submit Score</button>
+      <span id="lbMsg" style="font-size:12px;color:#64748b;margin-left:10px"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================= -->
+<!-- BATCH EVALUATE PANE                                                 -->
+<!-- ================================================================= -->
+<div class="pane" id="pane-batch">
+  <div style="margin-bottom:16px">
+    <div style="font-size:16px;font-weight:600;color:#f1f5f9;margin-bottom:4px">Batch Evaluate</div>
+    <div style="font-size:12px;color:#64748b">Score any SQL query against all 8 tasks simultaneously</div>
+  </div>
+  <div class="box" style="margin-bottom:16px">
+    <div class="lbl">SQL Query to evaluate</div>
+    <textarea class="sql-edit" id="batchSql" placeholder="Enter any SQL query to score against all 8 tasks..." style="min-height:100px"></textarea>
+    <div class="btn-row">
+      <button class="btn btn-go" onclick="runBatch()">Evaluate against all 8 tasks</button>
+    </div>
+  </div>
+  <div id="batchResults"></div>
+</div>
+
+<!-- ================================================================= -->
+<!-- HISTORY PANE                                                        -->
+<!-- ================================================================= -->
+<div class="pane" id="pane-history">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div>
+      <div style="font-size:16px;font-weight:600;color:#f1f5f9;margin-bottom:4px">Episode History</div>
+      <div style="font-size:12px;color:#64748b">Full step-by-step trajectory of the current episode</div>
+    </div>
+    <button class="btn btn-go" style="flex:none;min-width:140px" onclick="loadHistory()">Refresh</button>
+  </div>
+  <div id="histContent">
+    <div class="empty"><div style="font-size:13px;color:#475569">Click Refresh after running some steps in the Tester tab</div></div>
+  </div>
+</div>
+
+</div><!-- container -->
 
 <script>
 const CORRECT={
@@ -169,89 +365,327 @@ const TASKS=[
   {id:"fix_cte",name:"Fix CTE bug",diff:"hard"},
   {id:"multi_step_aggregation",name:"Multi-dim report",diff:"expert"},
 ];
-let cur=null,hist=[];
-function setUrl(t,s){document.getElementById("urlText").textContent=t;document.getElementById("dot").className="dot "+(s||"")}
+
+let cur=null, hist=[], hintsUsed=0;
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function showPane(id){
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('pane-'+id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── URL bar ────────────────────────────────────────────────────────────────
+function setUrl(t,s){
+  document.getElementById('urlText').textContent=t;
+  document.getElementById('dot').className='dot '+(s||'');
+}
+
+// ── Hint dots ──────────────────────────────────────────────────────────────
+function updateHintDots(used){
+  hintsUsed=used;
+  for(let i=1;i<=3;i++){
+    const d=document.getElementById('hd'+i);
+    d.className='hint-dot '+(i<=used?'used':'available');
+  }
+  const penalty=used*10;
+  document.getElementById('penaltyLabel').textContent=used>0?`(-${penalty}% penalty)`:'';
+  document.getElementById('hintBtn').disabled=used>=3;
+  document.getElementById('hintBtn').style.opacity=used>=3?'0.4':'1';
+}
+
+// ── Task grid ──────────────────────────────────────────────────────────────
 (function buildGrid(){
-  const g=document.getElementById("taskGrid");
+  const g=document.getElementById('taskGrid');
   TASKS.forEach(t=>{
-    const b=document.createElement("div");
-    b.className="task-btn";b.id="btn_"+t.id;
+    const b=document.createElement('div');
+    b.className='task-btn';b.id='btn_'+t.id;
     b.innerHTML=`<div class="task-name">${t.name}</div><span class="diff-badge ${t.diff}">${t.diff}</span>`;
-    b.onclick=()=>selectTask(t.id);g.appendChild(b);
+    b.onclick=()=>selectTask(t.id);
+    g.appendChild(b);
   });
 })();
+
+// ── Select task ────────────────────────────────────────────────────────────
 async function selectTask(tid){
-  document.querySelectorAll(".task-btn").forEach(b=>b.classList.remove("active"));
-  document.getElementById("btn_"+tid).classList.add("active");
-  document.getElementById("resultArea").style.display="none";
-  document.getElementById("histSec").style.display="none";
-  document.getElementById("emptyState").style.display="none";
-  hist=[];setUrl("POST /reset — loading task...","orange");
+  document.querySelectorAll('.task-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('btn_'+tid).classList.add('active');
+  document.getElementById('resultArea').style.display='none';
+  document.getElementById('histSec').style.display='none';
+  document.getElementById('hintArea').style.display='none';
+  document.getElementById('emptyState').style.display='none';
+  hist=[];updateHintDots(0);
+  setUrl('POST /reset — loading task...','o');
   try{
-    const r=await fetch("/reset",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task_id:tid})});
-    const o=await r.json();cur=tid;
-    document.getElementById("brokenQ").textContent=o.broken_query||"";
-    document.getElementById("schemaH").textContent=o.schema_hint||"";
-    document.getElementById("sqlIn").value="";
-    document.getElementById("sNum").textContent=o.step_count||0;
-    document.getElementById("sMax").textContent=o.max_steps||0;
-    document.getElementById("epId").textContent=((o.episode_id||"").slice(0,8)||"—")+"...";
-    document.getElementById("mainPanel").style.display="block";
-    setUrl("Ready — write your SQL fix and click Submit","green");
-  }catch(e){setUrl("Connection failed — is the server running?","red");}
+    const r=await fetch('/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_id:tid})});
+    const o=await r.json();
+    cur=tid;
+    document.getElementById('brokenQ').textContent=o.broken_query||'';
+    document.getElementById('schemaH').textContent=o.schema_hint||'';
+    document.getElementById('sqlIn').value='';
+    document.getElementById('sNum').textContent=o.step_count||0;
+    document.getElementById('sMax').textContent=o.max_steps||0;
+    document.getElementById('epId').textContent=((o.episode_id||'').slice(0,8)||'—')+'...';
+    document.getElementById('mainPanel').style.display='block';
+    setUrl('Ready — write your SQL fix and submit','g');
+  }catch(e){setUrl('Connection failed — is the server running?','r');}
 }
+
 async function resetTask(){if(cur)await selectTask(cur);}
-function fillAnswer(){if(cur&&CORRECT[cur])document.getElementById("sqlIn").value=CORRECT[cur];}
+function fillAnswer(){if(cur&&CORRECT[cur])document.getElementById('sqlIn').value=CORRECT[cur];}
+
+// ── Hint ───────────────────────────────────────────────────────────────────
+async function getHint(){
+  if(!cur)return;
+  setUrl('POST /hint — requesting hint...','o');
+  try{
+    const r=await fetch('/hint',{method:'POST'});
+    const h=await r.json();
+    document.getElementById('hintText').textContent=`Hint ${h.level}/3: ${h.hint}`;
+    if(h.hints_remaining===0) document.getElementById('hintText').textContent+=' (No more hints available)';
+    document.getElementById('hintText').textContent+=`\nPenalty: -${Math.round(h.total_penalty*100)}% applied to future rewards.`;
+    document.getElementById('hintArea').style.display='block';
+    updateHintDots(h.level);
+    setUrl(`Hint ${h.level}/3 used — ${Math.round(h.total_penalty*100)}% reward penalty active`,'o');
+  }catch(e){setUrl('Hint request failed','r');}
+}
+
+// ── Submit step ────────────────────────────────────────────────────────────
 async function submitStep(){
   if(!cur)return;
-  const sql=document.getElementById("sqlIn").value.trim();
-  if(!sql){alert("Enter a SQL query first.");return;}
-  setUrl("POST /step — submitting query...","orange");
+  const sql=document.getElementById('sqlIn').value.trim();
+  if(!sql){alert('Enter a SQL query first.');return;}
+  setUrl('POST /step — submitting...','o');
   try{
-    const r=await fetch("/step",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:{sql_query:sql,reasoning:"Visual tester"}})});
+    const r=await fetch('/step',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:{sql_query:sql,reasoning:'Visual tester'}})});
     const o=await r.json();
     const bd=o.reward_breakdown||{};
     const rw=parseFloat(o.reward||0),co=parseFloat(bd.correctness||0),ef=parseFloat(bd.efficiency||0);
     const ms=parseFloat(o.execution_time_ms||0);
-    document.getElementById("sNum").textContent=o.step_count||0;
-    setUrl(`POST /step — ${o.error_message?"error":"success"} (${ms.toFixed(2)}ms) → reward: ${rw.toFixed(4)}`,o.error_message?"red":"green");
-    document.getElementById("rVal").textContent=rw.toFixed(4);
-    document.getElementById("cVal").textContent=co.toFixed(2);
-    document.getElementById("eVal").textContent=ef.toFixed(2);
+
+    document.getElementById('sNum').textContent=o.step_count||0;
+    if(o.hints_used!==undefined)updateHintDots(o.hints_used);
+
+    setUrl(`POST /step — ${o.error_message?'error':'ok'} (${ms.toFixed(2)}ms) → reward: ${rw.toFixed(4)}`,o.error_message?'r':'g');
+
+    document.getElementById('rVal').textContent=rw.toFixed(4);
+    document.getElementById('cVal').textContent=co.toFixed(2);
+    document.getElementById('eVal').textContent=ef.toFixed(2);
+    document.getElementById('msVal').textContent=ms.toFixed(2);
+
     const rp=Math.round(rw*100),cp=Math.round(co*100);
-    document.getElementById("rPct").textContent=rp+"%";
-    document.getElementById("cPct").textContent=cp+"%";
-    document.getElementById("rBar").style.cssText=`width:${rp}%;background:${rw>=0.8?"#22c55e":rw>=0.5?"#f59e0b":"#ef4444"}`;
-    document.getElementById("cBar").style.cssText=`width:${cp}%;background:#3b82f6`;
-    const sm=document.getElementById("smsg");
+    document.getElementById('rPct').textContent=rp+'%';
+    document.getElementById('cPct').textContent=cp+'%';
+    document.getElementById('rBar').style.cssText=`width:${rp}%;background:${rw>=0.8?'#22c55e':rw>=0.5?'#f59e0b':'#ef4444'}`;
+    document.getElementById('cBar').style.cssText=`width:${cp}%;background:#3b82f6`;
+
+    const sm=document.getElementById('smsg');
     if(o.done&&rw>=0.8)sm.innerHTML=`<div class="ok">Task solved! reward=${rw.toFixed(4)} correctness=${co.toFixed(2)} done=true</div>`;
     else if(o.done)sm.innerHTML=`<div class="warn">Episode ended (max steps). Final reward=${rw.toFixed(4)}</div>`;
     else if(o.error_message)sm.innerHTML=`<div class="err">SQL error: ${o.error_message}</div>`;
-    else if(rw>=0.8)sm.innerHTML=`<div class="ok">Great result! reward=${rw.toFixed(4)} — submit again to finish</div>`;
-    else sm.innerHTML=`<div class="info">Step ${o.step_count}/${o.max_steps} — reward=${rw.toFixed(4)} — keep refining your query</div>`;
-    const ex=document.getElementById("expl");
-    if(bd.explanation){ex.textContent=bd.explanation;ex.style.display="block";}else ex.style.display="none";
-    const tw=document.getElementById("tblWrap");
+    else if(rw>=0.8)sm.innerHTML=`<div class="ok">Great result! reward=${rw.toFixed(4)} — keep going</div>`;
+    else sm.innerHTML=`<div class="info">Step ${o.step_count}/${o.max_steps} — reward=${rw.toFixed(4)} — refine your query</div>`;
+
+    const ex=document.getElementById('expl');
+    if(bd.explanation){ex.textContent=bd.explanation;ex.style.display='block';}else ex.style.display='none';
+
+    // Query analysis pills
+    const ar=document.getElementById('analysisRow');
+    if(o.query_analysis){
+      const qa=o.query_analysis;
+      ar.innerHTML=`
+        <span class="analysis-pill ${qa.scan_count===0?'analysis-ok':qa.scan_count<=2?'analysis-info':'analysis-warn'}">Scans: ${qa.scan_count}</span>
+        <span class="analysis-pill ${qa.uses_index?'analysis-ok':'analysis-warn'}">${qa.uses_index?'Index used':'No index'}</span>
+        <span class="analysis-pill analysis-info">${qa.plan_steps} plan steps</span>
+        <span class="analysis-pill analysis-info" style="flex:1;max-width:none">${qa.suggestion}</span>`;
+      ar.style.display='flex';
+    }else ar.style.display='none';
+
+    // Result table
+    const tw=document.getElementById('tblWrap');
     if(o.query_result&&o.query_result.length>0){
       const cols=Object.keys(o.query_result[0]);
-      let h=`<table class="rtbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join("")}</tr></thead><tbody>`;
+      let h=`<table class="rtbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>`;
       o.query_result.forEach(row=>{
-        h+="<tr>"+cols.map(c=>{const v=row[c];return`<td>${typeof v==="number"?(Number.isInteger(v)?v:parseFloat(v.toFixed(2))):(v===null?'<span style="color:#475569">null</span>':v)}</td>`}).join("")+"</tr>";
+        h+='<tr>'+cols.map(c=>{const v=row[c];return`<td>${typeof v==='number'?(Number.isInteger(v)?v:parseFloat(v.toFixed(2))):(v===null?'<span style="color:#475569">null</span>':v)}</td>`}).join('')+'</tr>';
       });
-      h+="</tbody></table>";tw.innerHTML=h;tw.style.display="block";
-    }else if(o.error_message){tw.innerHTML=`<div style="padding:10px;font-size:12px;color:#64748b">No result — query failed</div>`;tw.style.display="block";}
-    else tw.style.display="none";
-    hist.push({step:o.step_count,rw,sql:sql.slice(0,62)+(sql.length>62?"...":""),done:o.done});
-    document.getElementById("histList").innerHTML=hist.map(h=>`
+      h+='</tbody></table>';tw.innerHTML=h;tw.style.display='block';
+    }else if(o.error_message){
+      tw.innerHTML=`<div style="padding:10px;font-size:11px;color:#64748b">No result — query failed</div>`;tw.style.display='block';
+    }else tw.style.display='none';
+
+    // Step history
+    const hintFlag=hintsUsed>0;
+    hist.push({step:o.step_count,rw,sql:sql.slice(0,58)+(sql.length>58?'...':''),done:o.done,hint:hintFlag});
+    document.getElementById('histList').innerHTML=hist.map(h=>`
       <div class="hist-item">
         <span class="hs">Step ${h.step}</span>
         <span class="hsql">${h.sql}</span>
-        <span class="hrw" style="color:${h.rw>=0.8?"#22c55e":h.rw>=0.5?"#f59e0b":"#ef4444"}">${h.rw.toFixed(3)}</span>
-        ${h.done?'<span class="hdone">done</span>':""}
-      </div>`).join("");
-    document.getElementById("resultArea").style.display="block";
-    document.getElementById("histSec").style.display="block";
-  }catch(e){setUrl("Request failed","red");document.getElementById("smsg").innerHTML=`<div class="err">Error: ${e.message}</div>`;document.getElementById("resultArea").style.display="block";}
+        <span class="hrw" style="color:${h.rw>=0.8?'#22c55e':h.rw>=0.5?'#f59e0b':'#ef4444'}">${h.rw.toFixed(3)}</span>
+        ${h.done?'<span class="hdone">done</span>':''}
+        ${h.hint?'<span class="hhint">hint</span>':''}
+      </div>`).join('');
+
+    document.getElementById('resultArea').style.display='block';
+    document.getElementById('histSec').style.display='block';
+  }catch(e){
+    setUrl('Request failed — check server','r');
+    document.getElementById('smsg').innerHTML=`<div class="err">Error: ${e.message}</div>`;
+    document.getElementById('resultArea').style.display='block';
+  }
+}
+
+// ── Curriculum ─────────────────────────────────────────────────────────────
+async function loadCurriculum(){
+  document.getElementById('currContent').innerHTML='<div class="empty"><div style="font-size:12px;color:#475569">Loading...</div></div>';
+  try{
+    const r=await fetch('/curriculum');
+    const d=await r.json();
+    const tasks=d.tasks||[];
+    let html=`<div style="margin-bottom:16px;font-size:13px;color:#94a3b8">Progress: <b style="color:#f1f5f9">${d.progress}</b> &nbsp; Current task: <b style="color:#60a5fa">${d.current_task}</b></div>`;
+    html+='<div class="curr-grid">';
+    tasks.forEach(t=>{
+      const cls=t.mastered?'mastered':t.current?'current':'';
+      const pct=Math.min(100,Math.round((t.recent_avg/0.8)*100));
+      const diffColors={easy:'#22c55e',medium:'#f59e0b',hard:'#ef4444',expert:'#a78bfa'};
+      const dc=diffColors[t.difficulty]||'#94a3b8';
+      html+=`<div class="curr-card ${cls}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:12px;font-weight:600;color:#f1f5f9">${t.task_id.replace(/_/g,' ')}</span>
+          <span style="font-size:10px;font-weight:600;color:${dc}">${t.difficulty.toUpperCase()}</span>
+        </div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:6px">Episodes: ${t.episodes} &nbsp; Avg: ${t.recent_avg.toFixed(2)}/0.80</div>
+        <div class="curr-prog">
+          <div class="curr-bar"><div class="curr-bar-fill" style="width:${pct}%;background:${t.mastered?'#22c55e':'#3b82f6'}"></div></div>
+          <span style="font-size:10px;color:${t.mastered?'#22c55e':'#64748b'};min-width:40px;text-align:right">${t.mastered?'✓ done':pct+'%'}</span>
+        </div>
+        ${t.current?'<div style="font-size:10px;color:#60a5fa;margin-top:4px">← current</div>':''}
+      </div>`;
+    });
+    html+='</div>';
+    document.getElementById('currContent').innerHTML=html;
+  }catch(e){document.getElementById('currContent').innerHTML=`<div class="empty"><div style="font-size:12px;color:#ef4444">Failed to load: ${e.message}</div></div>`;}
+}
+
+// ── Leaderboard ────────────────────────────────────────────────────────────
+async function loadLeaderboard(){
+  document.getElementById('lbContent').innerHTML='<div class="empty"><div style="font-size:12px;color:#475569">Loading...</div></div>';
+  try{
+    const r=await fetch('/leaderboard');
+    const d=await r.json();
+    const entries=d.leaderboard||[];
+    const sess=d.current_session;
+
+    let html='';
+    if(entries.length===0&&(!sess||sess.total_episodes===0)){
+      html='<div class="empty"><div style="font-size:13px;color:#475569">No entries yet. Run inference.py to submit scores.</div></div>';
+    }else{
+      html=`<div class="box" style="margin-bottom:12px">
+        <div class="lbl" style="margin-bottom:10px">Current session</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
+          <div><span style="color:#64748b">Mean score:</span> <b style="color:#22c55e">${sess?sess.mean_score.toFixed(4):'—'}</b></div>
+          <div><span style="color:#64748b">Episodes:</span> <b style="color:#f1f5f9">${sess?sess.episodes:0}</b></div>
+          <div><span style="color:#64748b">Steps:</span> <b style="color:#f1f5f9">${sess?sess.steps:0}</b></div>
+        </div>
+      </div>`;
+
+      if(entries.length>0){
+        html+=`<div class="box"><table class="lb-table">
+          <tr><th>#</th><th>Model</th><th>Mean Score</th><th>Episodes</th></tr>`;
+        entries.forEach((e,i)=>{
+          const rc=i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'';
+          html+=`<tr>
+            <td class="${rc}">${i+1}</td>
+            <td style="color:#f1f5f9;font-weight:500">${e.model_name}</td>
+            <td style="color:#22c55e;font-weight:600">${parseFloat(e.mean_score).toFixed(4)}</td>
+            <td style="color:#94a3b8">${e.episodes}</td>
+          </tr>`;
+        });
+        html+='</table></div>';
+      }
+    }
+    document.getElementById('lbContent').innerHTML=html;
+  }catch(e){document.getElementById('lbContent').innerHTML=`<div class="empty"><div style="font-size:12px;color:#ef4444">Failed: ${e.message}</div></div>`;}
+}
+
+async function submitLeaderboard(){
+  const model=document.getElementById('lbModel').value.trim();
+  const score=parseFloat(document.getElementById('lbScore').value);
+  if(!model||isNaN(score)||score<0||score>1){document.getElementById('lbMsg').textContent='Enter valid model name and score (0–1)';return;}
+  try{
+    const r=await fetch('/leaderboard/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model_name:model,mean_score:score,episodes:1})});
+    const d=await r.json();
+    document.getElementById('lbMsg').textContent=`Submitted! Rank: #${d.rank}`;
+    setTimeout(loadLeaderboard,500);
+  }catch(e){document.getElementById('lbMsg').textContent='Failed: '+e.message;}
+}
+
+// ── Batch evaluate ─────────────────────────────────────────────────────────
+async function runBatch(){
+  const sql=document.getElementById('batchSql').value.trim();
+  if(!sql){alert('Enter a SQL query first.');return;}
+  document.getElementById('batchResults').innerHTML='<div class="empty"><div style="font-size:12px;color:#475569">Evaluating against all 8 tasks...</div></div>';
+  try{
+    const r=await fetch('/evaluate/batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sql_query:sql})});
+    const d=await r.json();
+    const res=d.results_by_task||{};
+    let html=`<div style="margin-bottom:12px;font-size:13px;color:#94a3b8">Mean score: <b style="color:${d.mean_score>=0.8?'#22c55e':d.mean_score>=0.5?'#f59e0b':'#ef4444'};font-size:16px">${d.mean_score.toFixed(4)}</b> &nbsp; Tasks solved: <b style="color:#f1f5f9">${d.tasks_solved}/8</b></div>`;
+    html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">';
+    const diffColors={easy:'#22c55e',medium:'#f59e0b',hard:'#ef4444',expert:'#a78bfa'};
+    TASKS.forEach(t=>{
+      const res_t=res[t.id]||{};
+      const rw=parseFloat(res_t.reward||0);
+      const dc=diffColors[t.diff];
+      html+=`<div class="box" style="border-color:${rw>=0.8?'#166534':rw>=0.5?'#78350f':'#334155'}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:11px;font-weight:500;color:#f1f5f9">${t.name}</span>
+          <span style="font-size:10px;font-weight:600;color:${dc}">${t.diff}</span>
+        </div>
+        <div style="font-size:22px;font-weight:700;color:${rw>=0.8?'#22c55e':rw>=0.5?'#f59e0b':'#ef4444'};margin-bottom:4px">${rw.toFixed(3)}</div>
+        ${res_t.error?`<div style="font-size:10px;color:#ef4444">${res_t.error.slice(0,60)}</div>`:`<div style="font-size:10px;color:#64748b">${res_t.rows||0} rows returned</div>`}
+      </div>`;
+    });
+    html+='</div>';
+    document.getElementById('batchResults').innerHTML=html;
+  }catch(e){document.getElementById('batchResults').innerHTML=`<div class="empty"><div style="font-size:12px;color:#ef4444">Failed: ${e.message}</div></div>`;}
+}
+
+// ── Episode history pane ───────────────────────────────────────────────────
+async function loadHistory(){
+  document.getElementById('histContent').innerHTML='<div class="empty"><div style="font-size:12px;color:#475569">Loading...</div></div>';
+  try{
+    const r=await fetch('/history');
+    const d=await r.json();
+    if(!d.steps||d.steps.length===0){
+      document.getElementById('histContent').innerHTML='<div class="empty"><div style="font-size:13px;color:#475569">No steps yet in current episode. Run some steps in the Tester tab first.</div></div>';
+      return;
+    }
+    let html=`<div style="margin-bottom:12px;font-size:12px;color:#94a3b8">
+      Episode: <b style="font-family:monospace;color:#60a5fa">${(d.episode_id||'').slice(0,16)}...</b> &nbsp;
+      Task: <b style="color:#f1f5f9">${d.task_id}</b> &nbsp;
+      Steps: <b style="color:#f1f5f9">${d.total_steps}</b> &nbsp;
+      Cumulative reward: <b style="color:#22c55e">${parseFloat(d.cumulative_reward||0).toFixed(4)}</b>
+      ${d.hints_used>0?`&nbsp; Hints: <b style="color:#a5b4fc">${d.hints_used} (penalty ${Math.round(d.hint_penalty*100)}%)</b>`:''}
+    </div>`;
+    html+=`<div class="hist-box" style="max-height:400px">`;
+    d.steps.forEach(s=>{
+      const rw=parseFloat(s.reward||0);
+      html+=`<div class="hist-item" style="flex-direction:column;align-items:flex-start;padding:10px 0;gap:4px">
+        <div style="display:flex;width:100%;gap:8px;align-items:center">
+          <span class="hs">Step ${s.step}</span>
+          <span class="hrw" style="color:${rw>=0.8?'#22c55e':rw>=0.5?'#f59e0b':'#ef4444'}">${rw.toFixed(3)}</span>
+          ${s.done?'<span class="hdone">done</span>':''}
+          ${s.exec_ms?`<span style="font-size:10px;color:#475569">${parseFloat(s.exec_ms).toFixed(2)}ms</span>`:''}
+        </div>
+        <div style="font-family:monospace;font-size:10.5px;color:#94a3b8;word-break:break-all;padding-left:52px">${s.sql_query||''}</div>
+        ${s.error?`<div style="font-size:10.5px;color:#f87171;padding-left:52px">Error: ${s.error.slice(0,100)}</div>`:''}
+        ${s.reasoning?`<div style="font-size:10.5px;color:#64748b;padding-left:52px;font-style:italic">${s.reasoning}</div>`:''}
+      </div>`;
+    });
+    html+='</div>';
+    document.getElementById('histContent').innerHTML=html;
+  }catch(e){document.getElementById('histContent').innerHTML=`<div class="empty"><div style="font-size:12px;color:#ef4444">Failed: ${e.message}</div></div>`;}
 }
 </script>
 </body>

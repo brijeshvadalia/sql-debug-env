@@ -24,6 +24,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
@@ -233,6 +234,7 @@ def create_app() -> FastAPI:
         <a class="endpoint" href="/docs"><span class="method post">POST</span>/reset — Start episode</a>
         <a class="endpoint" href="/docs"><span class="method post">POST</span>/step — Submit SQL query</a>
         <a class="endpoint" href="/docs"><span class="method post">POST</span>/evaluate — Score any query</a>
+        <a class="endpoint" href="/tester"><span class="method get">GET</span>/tester — Visual Task Tester</a>
         <a class="endpoint" href="/docs"><span class="method get">GET</span>/docs — Swagger UI</a>
       </div>
     </div>
@@ -260,6 +262,15 @@ def create_app() -> FastAPI:
         return HTMLResponse(content=html)
 
     # ── Meta endpoints ────────────────────────────────────────────────────────
+
+    @app.get("/tester", tags=["meta"], response_class=HTMLResponse)
+    async def tester():
+        """Visual interactive tester — try all 8 tasks with real-time rewards."""
+        from pathlib import Path
+        tester_path = Path(__file__).parent.parent / "static" / "tester.html"
+        if tester_path.exists():
+            return HTMLResponse(content=tester_path.read_text())
+        return HTMLResponse(content="<h1>Tester not found</h1>", status_code=404)
 
     @app.get("/health", tags=["meta"])
     async def health():
@@ -428,6 +439,11 @@ def create_app() -> FastAPI:
             logger.info("Gradio UI mounted at /web")
         except ImportError:
             logger.warning("gradio not installed — web UI disabled.")
+
+    from pathlib import Path
+    static_dir = Path(__file__).parent.parent / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     return app
 

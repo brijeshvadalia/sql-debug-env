@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>SQL Debug — Visual Tester</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+a{color:#60a5fa;text-decoration:none}a:hover{text-decoration:underline}
+.topbar{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.topbar-title{font-size:15px;font-weight:600;color:#f1f5f9}
+.topbar-links{display:flex;gap:16px;font-size:13px}
+.container{max-width:1200px;margin:0 auto;padding:20px}
+.task-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+@media(max-width:680px){.task-grid{grid-template-columns:repeat(2,1fr)}}
+.task-btn{padding:12px 8px;border:1px solid #334155;border-radius:10px;background:#1e293b;cursor:pointer;text-align:center;transition:all .15s;user-select:none}
+.task-btn:hover{border-color:#475569;background:#273548}
+.task-btn.active{border-color:#3b82f6;background:#1e3a5f}
+.task-name{font-size:12px;font-weight:500;color:#f1f5f9;margin-bottom:6px;line-height:1.3}
+.diff-badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600}
+.easy{background:#166534;color:#86efac}.medium{background:#92400e;color:#fde68a}
+.hard{background:#7f1d1d;color:#fca5a5}.expert{background:#4c1d95;color:#c4b5fd}
+.url-bar{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px 14px;font-size:12px;color:#94a3b8;font-family:monospace;margin-bottom:14px;display:flex;align-items:center;gap:8px;word-break:break-all}
+.dot{width:8px;height:8px;border-radius:50%;background:#475569;flex-shrink:0}
+.dot.green{background:#22c55e}.dot.orange{background:#f59e0b}.dot.red{background:#ef4444}
+.panel{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:680px){.panel{grid-template-columns:1fr}}
+.box{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px}
+.lbl{font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}
+.sql-show{background:#0f172a;border:1px solid #1e293b;border-radius:7px;padding:10px;font-family:monospace;font-size:11.5px;color:#a5f3fc;white-space:pre-wrap;word-break:break-all;max-height:150px;overflow-y:auto;line-height:1.65}
+.schema-show{background:#0f172a;border:1px solid #1e293b;border-radius:7px;padding:9px;font-family:monospace;font-size:11px;color:#94a3b8;white-space:pre-wrap;max-height:80px;overflow-y:auto;line-height:1.55;margin-top:9px}
+.sql-edit{font-family:monospace;font-size:12px;width:100%;border:1px solid #334155;border-radius:7px;padding:10px;background:#0f172a;color:#e2e8f0;resize:vertical;min-height:135px;line-height:1.65;outline:none}
+.sql-edit:focus{border-color:#3b82f6}
+.btn-row{display:flex;gap:8px;margin:9px 0 6px}
+.btn{padding:9px 14px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid;transition:all .15s}
+.btn:active{transform:scale(.98)}
+.btn-go{background:#1e3a5f;border-color:#3b82f6;color:#93c5fd;flex:1}
+.btn-go:hover{background:#1d4ed8;color:#fff}
+.btn-ans{background:#1c1917;border-color:#78350f;color:#fbbf24;font-size:12px}
+.btn-ans:hover{background:#78350f;color:#fff}
+.btn-reset{background:#1e293b;border-color:#334155;color:#94a3b8;font-size:12px}
+.btn-reset:hover{background:#334155;color:#e2e8f0}
+.step-info{font-size:12px;color:#64748b}
+.step-info b{color:#94a3b8}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.metric{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px;text-align:center}
+.metric-v{font-size:22px;font-weight:600;color:#f1f5f9}
+.metric-l{font-size:11px;color:#64748b;margin-top:2px}
+.bar-wrap{margin-bottom:10px}
+.bar-row{display:flex;justify-content:space-between;font-size:12px;color:#64748b;margin-bottom:4px}
+.bar-bg{background:#1e293b;border-radius:4px;height:9px;overflow:hidden}
+.bar-fill{height:9px;border-radius:4px;transition:width .4s ease,background .3s}
+.smsg{margin-bottom:9px;font-size:13px;line-height:1.55}
+.ok{background:#14532d;border-left:4px solid #22c55e;padding:9px 13px;border-radius:0 7px 7px 0;color:#86efac}
+.err{background:#450a0a;border-left:4px solid #ef4444;padding:9px 13px;border-radius:0 7px 7px 0;color:#fca5a5}
+.info{background:#172554;border-left:4px solid #3b82f6;padding:9px 13px;border-radius:0 7px 7px 0;color:#93c5fd}
+.warn{background:#431407;border-left:4px solid #f59e0b;padding:9px 13px;border-radius:0 7px 7px 0;color:#fde68a}
+.expl{font-size:11px;color:#64748b;font-family:monospace;background:#0f172a;padding:7px 11px;border-radius:6px;border:1px solid #1e293b;margin-bottom:9px;word-break:break-all}
+.tbl-wrap{background:#1e293b;border:1px solid #334155;border-radius:10px;overflow:hidden;max-height:210px;overflow-y:auto;margin-bottom:12px}
+.rtbl{width:100%;border-collapse:collapse;font-size:12px}
+.rtbl th{background:#0f172a;padding:7px 9px;text-align:left;font-size:10.5px;font-weight:600;color:#64748b;border-bottom:1px solid #334155;white-space:nowrap}
+.rtbl td{padding:6px 9px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-family:monospace;font-size:11px}
+.rtbl tr:last-child td{border-bottom:none}
+.rtbl tr:hover td{background:#273548}
+.hist-box{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:10px}
+.hist-item{display:flex;align-items:center;gap:9px;padding:5px 0;border-bottom:1px solid #1e293b;font-size:12px}
+.hist-item:last-child{border-bottom:none}
+.hs{color:#64748b;min-width:48px;font-size:11px}
+.hsql{flex:1;font-family:monospace;font-size:10.5px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hrw{font-weight:600;min-width:44px;text-align:right;font-size:12px}
+.hdone{font-size:10px;background:#14532d;color:#86efac;padding:2px 6px;border-radius:10px}
+.empty{text-align:center;padding:40px 20px;color:#475569}
+.empty-icon{font-size:36px;margin-bottom:10px}
+.section-title{font-size:13px;font-weight:600;color:#94a3b8;margin-bottom:8px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title">SQL Debug Environment — Visual Tester</div>
+  <div class="topbar-links">
+    <a href="/">Home</a>
+    <a href="/docs">API Docs</a>
+    <a href="/tasks">Tasks</a>
+    <a href="/stats">Stats</a>
+    <a href="/history">History</a>
+  </div>
+</div>
+
+<div class="container">
+  <div class="task-grid" id="taskGrid"></div>
+
+  <div class="url-bar">
+    <div class="dot" id="dot"></div>
+    <span id="urlText">Select a task above to begin testing</span>
+  </div>
+
+  <div id="mainPanel" style="display:none">
+    <div class="panel">
+      <div class="box">
+        <div class="lbl">Broken query — what the agent receives</div>
+        <div class="sql-show" id="brokenQ"></div>
+        <div class="lbl" style="margin-top:10px">Schema hint</div>
+        <div class="schema-show" id="schemaH"></div>
+      </div>
+      <div class="box">
+        <div class="lbl">Your SQL fix — edit and submit</div>
+        <textarea class="sql-edit" id="sqlIn" placeholder="Write your corrected SQL here..."></textarea>
+        <div class="btn-row">
+          <button class="btn btn-go" onclick="submitStep()">Submit to environment</button>
+          <button class="btn btn-ans" onclick="fillAnswer()">Show answer</button>
+          <button class="btn btn-reset" onclick="resetTask()">Reset</button>
+        </div>
+        <div class="step-info">Step <b id="sNum">0</b> / <b id="sMax">0</b> &nbsp;&nbsp; Episode: <b id="epId" style="font-family:monospace;font-size:10px">—</b></div>
+      </div>
+    </div>
+
+    <div id="resultArea" style="display:none">
+      <div class="metrics">
+        <div class="metric"><div class="metric-v" id="rVal">—</div><div class="metric-l">Total Reward</div></div>
+        <div class="metric"><div class="metric-v" id="cVal">—</div><div class="metric-l">Correctness</div></div>
+        <div class="metric"><div class="metric-v" id="eVal">—</div><div class="metric-l">Efficiency</div></div>
+      </div>
+      <div class="bar-wrap">
+        <div class="bar-row"><span>Reward</span><span id="rPct">0%</span></div>
+        <div class="bar-bg"><div class="bar-fill" id="rBar" style="width:0%"></div></div>
+      </div>
+      <div class="bar-wrap">
+        <div class="bar-row"><span>Correctness</span><span id="cPct">0%</span></div>
+        <div class="bar-bg"><div class="bar-fill" id="cBar" style="width:0%;background:#3b82f6"></div></div>
+      </div>
+      <div id="smsg" class="smsg"></div>
+      <div id="expl" class="expl" style="display:none"></div>
+      <div id="tblWrap" class="tbl-wrap" style="display:none"></div>
+    </div>
+
+    <div id="histSec" style="display:none;margin-top:8px">
+      <div class="section-title">Step history this episode</div>
+      <div class="hist-box" id="histList"></div>
+    </div>
+  </div>
+
+  <div id="emptyState" class="empty">
+    <div class="empty-icon">&#8593;</div>
+    <div style="font-size:14px;font-weight:500;color:#64748b;margin-bottom:6px">Select a task to start</div>
+    <div style="font-size:13px;color:#475569">Click any task above — the broken query loads automatically and you can submit fixes and see rewards in real time</div>
+  </div>
+</div>
+
+<script>
+const CORRECT={
+  fix_syntax_error:"SELECT id, name, email FROM customers WHERE tier = 'vip' ORDER BY name;",
+  fix_logic_error:"SELECT o.id AS order_id, c.name AS customer_name, COUNT(oi.id) AS item_count, SUM(oi.quantity * oi.unit_price) AS computed_total FROM orders o JOIN customers c ON c.id = o.customer_id LEFT JOIN order_items oi ON oi.order_id = o.id GROUP BY o.id, c.name ORDER BY o.id;",
+  fix_null_handling:"SELECT p.id, p.name, p.category, COALESCE(AVG(r.rating), 0.0) AS avg_rating, COUNT(r.id) AS review_count FROM products p LEFT JOIN reviews r ON r.product_id = p.id WHERE p.active = 1 GROUP BY p.id, p.name, p.category ORDER BY avg_rating DESC, p.name ASC;",
+  fix_subquery_bug:"SELECT c.id, c.name, c.tier, SUM(oi.quantity * oi.unit_price) AS total_spent FROM customers c JOIN orders o ON o.customer_id = c.id JOIN order_items oi ON oi.order_id = o.id WHERE o.status != 'cancelled' GROUP BY c.id, c.name, c.tier HAVING total_spent > (SELECT AVG(total) FROM (SELECT SUM(oi2.quantity * oi2.unit_price) AS total FROM orders ord JOIN order_items oi2 ON oi2.order_id = ord.id WHERE ord.status != 'cancelled' GROUP BY ord.id)) ORDER BY total_spent DESC;",
+  optimize_query:"SELECT c.id, c.name, c.region, c.tier, COALESCE(SUM(oi.quantity * oi.unit_price), 0) AS total_revenue, COUNT(DISTINCT o.id) AS order_count FROM customers c LEFT JOIN orders o ON o.customer_id = c.id AND o.status != 'cancelled' LEFT JOIN order_items oi ON oi.order_id = o.id GROUP BY c.id, c.name, c.region, c.tier ORDER BY total_revenue DESC;",
+  fix_window_function:"SELECT c.id, c.name, c.region, c.tier, SUM(oi.quantity * oi.unit_price) AS total_spent, RANK() OVER (PARTITION BY c.region ORDER BY SUM(oi.quantity * oi.unit_price) DESC) AS region_rank FROM customers c JOIN orders o ON o.customer_id = c.id JOIN order_items oi ON oi.order_id = o.id WHERE o.status != 'cancelled' GROUP BY c.id, c.name, c.region, c.tier ORDER BY c.region, region_rank;",
+  fix_cte:"WITH customer_revenue AS (SELECT c.id, c.name, c.tier, SUM(oi.quantity * oi.unit_price) AS total_revenue FROM customers c JOIN orders o ON o.customer_id = c.id JOIN order_items oi ON oi.order_id = o.id WHERE o.status != 'cancelled' GROUP BY c.id, c.name, c.tier) SELECT id, name, tier, total_revenue, ROUND(total_revenue * 100.0 / (SELECT SUM(total_revenue) FROM customer_revenue), 2) AS revenue_pct FROM customer_revenue ORDER BY total_revenue DESC;",
+  multi_step_aggregation:"SELECT p.category, c.tier, COUNT(DISTINCT c.id) AS unique_customers, SUM(oi.quantity) AS total_units, ROUND(SUM(oi.quantity * oi.unit_price), 2) AS total_revenue, ROUND(SUM(oi.quantity * oi.unit_price) / COUNT(DISTINCT o.id), 2) AS avg_order_value FROM customers c JOIN orders o ON o.customer_id = c.id JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id WHERE o.status != 'cancelled' GROUP BY p.category, c.tier ORDER BY total_revenue DESC;"
+};
+const TASKS=[
+  {id:"fix_syntax_error",name:"Fix syntax error",diff:"easy"},
+  {id:"fix_logic_error",name:"Fix logic / join",diff:"medium"},
+  {id:"fix_null_handling",name:"Fix NULL handling",diff:"medium"},
+  {id:"fix_subquery_bug",name:"Fix subquery alias",diff:"medium"},
+  {id:"optimize_query",name:"Optimize N+1 query",diff:"hard"},
+  {id:"fix_window_function",name:"Fix window function",diff:"hard"},
+  {id:"fix_cte",name:"Fix CTE bug",diff:"hard"},
+  {id:"multi_step_aggregation",name:"Multi-dim report",diff:"expert"},
+];
+let cur=null,hist=[];
+function setUrl(t,s){document.getElementById("urlText").textContent=t;document.getElementById("dot").className="dot "+(s||"")}
+(function buildGrid(){
+  const g=document.getElementById("taskGrid");
+  TASKS.forEach(t=>{
+    const b=document.createElement("div");
+    b.className="task-btn";b.id="btn_"+t.id;
+    b.innerHTML=`<div class="task-name">${t.name}</div><span class="diff-badge ${t.diff}">${t.diff}</span>`;
+    b.onclick=()=>selectTask(t.id);g.appendChild(b);
+  });
+})();
+async function selectTask(tid){
+  document.querySelectorAll(".task-btn").forEach(b=>b.classList.remove("active"));
+  document.getElementById("btn_"+tid).classList.add("active");
+  document.getElementById("resultArea").style.display="none";
+  document.getElementById("histSec").style.display="none";
+  document.getElementById("emptyState").style.display="none";
+  hist=[];setUrl("POST /reset — loading task...","orange");
+  try{
+    const r=await fetch("/reset",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task_id:tid})});
+    const o=await r.json();cur=tid;
+    document.getElementById("brokenQ").textContent=o.broken_query||"";
+    document.getElementById("schemaH").textContent=o.schema_hint||"";
+    document.getElementById("sqlIn").value="";
+    document.getElementById("sNum").textContent=o.step_count||0;
+    document.getElementById("sMax").textContent=o.max_steps||0;
+    document.getElementById("epId").textContent=((o.episode_id||"").slice(0,8)||"—")+"...";
+    document.getElementById("mainPanel").style.display="block";
+    setUrl("Ready — write your SQL fix and click Submit","green");
+  }catch(e){setUrl("Connection failed — is the server running?","red");}
+}
+async function resetTask(){if(cur)await selectTask(cur);}
+function fillAnswer(){if(cur&&CORRECT[cur])document.getElementById("sqlIn").value=CORRECT[cur];}
+async function submitStep(){
+  if(!cur)return;
+  const sql=document.getElementById("sqlIn").value.trim();
+  if(!sql){alert("Enter a SQL query first.");return;}
+  setUrl("POST /step — submitting query...","orange");
+  try{
+    const r=await fetch("/step",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:{sql_query:sql,reasoning:"Visual tester"}})});
+    const o=await r.json();
+    const bd=o.reward_breakdown||{};
+    const rw=parseFloat(o.reward||0),co=parseFloat(bd.correctness||0),ef=parseFloat(bd.efficiency||0);
+    const ms=parseFloat(o.execution_time_ms||0);
+    document.getElementById("sNum").textContent=o.step_count||0;
+    setUrl(`POST /step — ${o.error_message?"error":"success"} (${ms.toFixed(2)}ms) → reward: ${rw.toFixed(4)}`,o.error_message?"red":"green");
+    document.getElementById("rVal").textContent=rw.toFixed(4);
+    document.getElementById("cVal").textContent=co.toFixed(2);
+    document.getElementById("eVal").textContent=ef.toFixed(2);
+    const rp=Math.round(rw*100),cp=Math.round(co*100);
+    document.getElementById("rPct").textContent=rp+"%";
+    document.getElementById("cPct").textContent=cp+"%";
+    document.getElementById("rBar").style.cssText=`width:${rp}%;background:${rw>=0.8?"#22c55e":rw>=0.5?"#f59e0b":"#ef4444"}`;
+    document.getElementById("cBar").style.cssText=`width:${cp}%;background:#3b82f6`;
+    const sm=document.getElementById("smsg");
+    if(o.done&&rw>=0.8)sm.innerHTML=`<div class="ok">Task solved! reward=${rw.toFixed(4)} correctness=${co.toFixed(2)} done=true</div>`;
+    else if(o.done)sm.innerHTML=`<div class="warn">Episode ended (max steps). Final reward=${rw.toFixed(4)}</div>`;
+    else if(o.error_message)sm.innerHTML=`<div class="err">SQL error: ${o.error_message}</div>`;
+    else if(rw>=0.8)sm.innerHTML=`<div class="ok">Great result! reward=${rw.toFixed(4)} — submit again to finish</div>`;
+    else sm.innerHTML=`<div class="info">Step ${o.step_count}/${o.max_steps} — reward=${rw.toFixed(4)} — keep refining your query</div>`;
+    const ex=document.getElementById("expl");
+    if(bd.explanation){ex.textContent=bd.explanation;ex.style.display="block";}else ex.style.display="none";
+    const tw=document.getElementById("tblWrap");
+    if(o.query_result&&o.query_result.length>0){
+      const cols=Object.keys(o.query_result[0]);
+      let h=`<table class="rtbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join("")}</tr></thead><tbody>`;
+      o.query_result.forEach(row=>{
+        h+="<tr>"+cols.map(c=>{const v=row[c];return`<td>${typeof v==="number"?(Number.isInteger(v)?v:parseFloat(v.toFixed(2))):(v===null?'<span style="color:#475569">null</span>':v)}</td>`}).join("")+"</tr>";
+      });
+      h+="</tbody></table>";tw.innerHTML=h;tw.style.display="block";
+    }else if(o.error_message){tw.innerHTML=`<div style="padding:10px;font-size:12px;color:#64748b">No result — query failed</div>`;tw.style.display="block";}
+    else tw.style.display="none";
+    hist.push({step:o.step_count,rw,sql:sql.slice(0,62)+(sql.length>62?"...":""),done:o.done});
+    document.getElementById("histList").innerHTML=hist.map(h=>`
+      <div class="hist-item">
+        <span class="hs">Step ${h.step}</span>
+        <span class="hsql">${h.sql}</span>
+        <span class="hrw" style="color:${h.rw>=0.8?"#22c55e":h.rw>=0.5?"#f59e0b":"#ef4444"}">${h.rw.toFixed(3)}</span>
+        ${h.done?'<span class="hdone">done</span>':""}
+      </div>`).join("");
+    document.getElementById("resultArea").style.display="block";
+    document.getElementById("histSec").style.display="block";
+  }catch(e){setUrl("Request failed","red");document.getElementById("smsg").innerHTML=`<div class="err">Error: ${e.message}</div>`;document.getElementById("resultArea").style.display="block";}
+}
+</script>
+</body>
+</html>

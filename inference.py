@@ -1,35 +1,16 @@
 """
-inference.py — SQL Debug Environment v3.0 Baseline Inference Script
-====================================================================
+inference.py — SQL Debug Environment v3.0
 
-MANDATORY REQUIREMENTS (per hackathon spec):
-  - Named 'inference.py' in root directory                    ✓
-  - Uses OpenAI Client for all LLM calls                      ✓
-  - Reads API_BASE_URL, MODEL_NAME, HF_TOKEN from environment ✓
-  - Runs all tasks and produces reproducible scores           ✓
-  - Completes in < 20 minutes on 2vCPU / 8GB                 ✓
-
-ADVANCED FEATURES:
-  - Multi-turn memory: agent sees full conversation history
-  - Hint system: agent can request hints (with penalty)
-  - EXPLAIN analysis: agent sees query plan feedback
-  - Curriculum mode: runs tasks in progressive difficulty order
-  - Leaderboard submission: auto-submits final scores
+MANDATORY: Emits structured stdout logs in [START], [STEP], [END] format
+as required by the Scaler x Meta PyTorch OpenEnv Hackathon 2026 dashboard.
+Any deviation causes incorrect evaluation scoring.
 
 Usage:
-    # Required environment variables
     export API_BASE_URL="https://router.huggingface.co/v1"
     export MODEL_NAME="Qwen/Qwen2.5-72B-Instruct"
     export HF_TOKEN="hf_xxx"
-    export ENV_BASE_URL="http://localhost:7860"   # optional, default shown
-
+    export ENV_BASE_URL="http://localhost:7860"
     python inference.py
-
-    # Curriculum mode (progressive difficulty)
-    CURRICULUM_MODE=1 python inference.py
-
-    # Use hints (costs 10% reward penalty each)
-    USE_HINTS=1 python inference.py
 """
 
 from __future__ import annotations
@@ -44,11 +25,8 @@ from typing import Any, Optional
 import httpx
 from openai import OpenAI
 
-from client import SQLDebugEnv
-from models import SQLAction, SQLObservation
-
 # ---------------------------------------------------------------------------
-# Configuration — all from environment variables
+# Configuration
 # ---------------------------------------------------------------------------
 
 API_BASE_URL: str = os.environ.get("API_BASE_URL", "https://router.huggingface.co/v1")
@@ -56,33 +34,84 @@ API_KEY: str      = os.environ.get("HF_TOKEN") or os.environ.get("API_KEY", "")
 MODEL_NAME: str   = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 ENV_BASE_URL: str = os.environ.get("ENV_BASE_URL", "http://localhost:7860")
 
-# Advanced options
 CURRICULUM_MODE: bool = os.environ.get("CURRICULUM_MODE", "0").lower() in ("1","true","yes")
 USE_HINTS: bool       = os.environ.get("USE_HINTS", "0").lower() in ("1","true","yes")
 MAX_STEPS: int        = int(os.environ.get("MAX_STEPS", "6"))
 TEMPERATURE: float    = float(os.environ.get("TEMPERATURE", "0.1"))
 MAX_TOKENS: int       = int(os.environ.get("MAX_TOKENS", "512"))
 
-# Default task list (can be overridden by TASK_IDS env var)
-DEFAULT_TASK_IDS = [
-    "fix_syntax_error",
-    "fix_logic_error",
-    "fix_null_handling",
-    "fix_subquery_bug",
-    "optimize_query",
-    "fix_window_function",
-    "fix_cte",
-    "multi_step_aggregation",
-]
-
 TASK_IDS = (
     os.environ.get("TASK_IDS", "").split(",")
     if os.environ.get("TASK_IDS")
-    else DEFAULT_TASK_IDS
+    else [
+        "fix_syntax_error",
+        "fix_logic_error",
+        "fix_null_handling",
+        "fix_subquery_bug",
+        "optimize_query",
+        "fix_window_function",
+        "fix_cte",
+        "multi_step_aggregation",
+    ]
 )
 
 # ---------------------------------------------------------------------------
-# System prompt — instructs LLM to return raw SQL only
+# MANDATORY structured log format — DO NOT CHANGE FIELD NAMES OR ORDER
+# Per Scaler x Meta PyTorch OpenEnv Hackathon 2026 dashboard requirement
+# ---------------------------------------------------------------------------
+
+def log_start(task_id: str, episode_id: str) -> None:
+    """Emit [START] log — must be first log for every episode."""
+    print(json.dumps({
+        "type": "[START]",
+        "task_id": task_id,
+        "episode_id": episode_id,
+        "model": MODEL_NAME,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }), flush=True)
+
+
+def log_step(
+    episode_id: str,
+    step: int,
+    sql_query: str,
+    reward: float,
+    done: bool,
+    error: Optional[str] = None,
+) -> None:
+    """Emit [STEP] log — must be emitted after every step() call."""
+    print(json.dumps({
+        "type": "[STEP]",
+        "episode_id": episode_id,
+        "step": step,
+        "sql_query": sql_query[:200],
+        "reward": round(reward, 4),
+        "done": done,
+        "error": error,
+    }), flush=True)
+
+
+def log_end(
+    episode_id: str,
+    task_id: str,
+    final_reward: float,
+    total_steps: int,
+    elapsed_seconds: float,
+) -> None:
+    """Emit [END] log — must be last log for every episode."""
+    print(json.dumps({
+        "type": "[END]",
+        "episode_id": episode_id,
+        "task_id": task_id,
+        "final_reward": round(final_reward, 4),
+        "total_steps": total_steps,
+        "elapsed_seconds": round(elapsed_seconds, 2),
+        "model": MODEL_NAME,
+    }), flush=True)
+
+
+# ---------------------------------------------------------------------------
+# System prompt
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = textwrap.dedent("""
@@ -99,10 +128,10 @@ SYSTEM_PROMPT = textwrap.dedent("""
 
     RULES:
     - Use standard SQLite-compatible SQL only.
-    - Preserve all column names and aliases exactly as specified in the task.
+    - Preserve all column names and aliases exactly as specified.
     - If the task requires ORDER BY, preserve it.
-    - If you see conversation history, use it to avoid repeating failed attempts.
-    - If you see EXPLAIN analysis showing high scan counts, optimise accordingly.
+    - Use conversation history to avoid repeating failed attempts.
+    - If EXPLAIN shows high scan counts, optimise accordingly.
 """).strip()
 
 
@@ -110,79 +139,66 @@ SYSTEM_PROMPT = textwrap.dedent("""
 # Build user prompt from observation
 # ---------------------------------------------------------------------------
 
-def build_prompt(obs: SQLObservation, step: int) -> str:
+def build_prompt(obs: dict, step: int) -> str:
     lines = [
-        f"=== Task: {obs.task_id} | Step {step}/{obs.max_steps} ===",
+        f"=== Task: {obs['task_id']} | Step {step}/{obs['max_steps']} ===",
         "",
         "TASK:",
-        obs.task_description.split("\n")[0],
+        obs.get("task_description", "").split("\n")[0],
         "",
         "SCHEMA:",
-        obs.schema_hint,
+        obs.get("schema_hint", ""),
         "",
         "BROKEN/SLOW QUERY (what you must fix):",
-        obs.broken_query,
+        obs.get("broken_query", ""),
         "",
     ]
 
-    # Execution feedback from last step
-    if obs.error_message:
-        lines += ["LAST ERROR:", obs.error_message, ""]
+    if obs.get("error_message"):
+        lines += ["LAST ERROR:", obs["error_message"], ""]
 
-    if obs.query_result is not None and len(obs.query_result) > 0:
+    if obs.get("query_result") and len(obs["query_result"]) > 0:
         lines += [
-            f"LAST RESULT (first 3 of {len(obs.query_result)} rows):",
-            json.dumps(obs.query_result[:3], indent=2),
+            f"LAST RESULT (first 3 of {len(obs['query_result'])} rows):",
+            json.dumps(obs["query_result"][:3], indent=2),
             "",
         ]
 
-    if obs.reward > 0:
-        lines += [f"LAST REWARD: {obs.reward:.4f}", ""]
+    if obs.get("reward", 0) > 0:
+        lines += [f"LAST REWARD: {obs['reward']:.4f}", ""]
 
-    # EXPLAIN analysis
-    if obs.query_analysis:
-        qa = obs.query_analysis
-        if isinstance(qa, dict):
-            lines += [
-                "QUERY PLAN ANALYSIS:",
-                f"  Scans: {qa.get('scan_count', 0)} | Index: {qa.get('uses_index', False)} | {qa.get('suggestion', '')}",
-                "",
-            ]
+    if obs.get("query_analysis"):
+        qa = obs["query_analysis"]
+        lines += [
+            "QUERY PLAN ANALYSIS:",
+            f"  Scans: {qa.get('scan_count',0)} | Index: {qa.get('uses_index',False)} | {qa.get('suggestion','')}",
+            "",
+        ]
 
-    # Multi-turn conversation history
-    if obs.conversation_history and len(obs.conversation_history) > 0:
+    history = obs.get("conversation_history", [])
+    if history:
         lines += ["CONVERSATION HISTORY (your previous attempts):"]
-        for turn in obs.conversation_history[-3:]:
+        for turn in history[-3:]:
             lines.append(
-                f"  Step {turn.get('step', '?')}: "
-                f"reward={turn.get('reward', 0):.3f} "
-                + (f"error='{turn.get('error', '')[:60]}'" if turn.get("error") else
-                   f"rows={turn.get('result_count', 0)}")
+                f"  Step {turn.get('step','?')}: reward={turn.get('reward',0):.3f} "
+                + (f"error='{turn.get('error','')[:60]}'" if turn.get("error")
+                   else f"rows={turn.get('result_count',0)}")
             )
-        lines += ["", "Learn from these attempts and improve your fix.", ""]
-
-    # Hint if available
-    if hasattr(obs, "hint_available") and obs.hint_available:
-        lines += [f"Hints available: {3 - getattr(obs, 'hints_used', 0)} remaining (each costs 10% reward penalty)", ""]
+        lines += ["", "Learn from these and improve your fix.", ""]
 
     lines.append("Output ONLY the corrected SQL query (no explanation):")
     return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
-# Extract SQL from model response
+# Extract SQL from LLM response
 # ---------------------------------------------------------------------------
 
-def extract_sql(response_text: str) -> str:
-    """Strip markdown fences, labels, and whitespace."""
-    text = response_text.strip()
-    # Remove ```sql ... ``` fences
+def extract_sql(text: str) -> str:
+    text = text.strip()
     if text.startswith("```"):
         lines = text.splitlines()
-        text = "\n".join(
-            line for line in lines if not line.strip().startswith("```")
-        ).strip()
-    # Remove common prefixes
+        text = "\n".join(l for l in lines if not l.strip().startswith("```")).strip()
     for prefix in ("SQL:", "Answer:", "Query:", "Result:"):
         if text.upper().startswith(prefix.upper()):
             text = text[len(prefix):].strip()
@@ -190,23 +206,16 @@ def extract_sql(response_text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Request hint from environment
+# Hint helper
 # ---------------------------------------------------------------------------
 
-def maybe_request_hint(env_base_url: str, step: int, max_steps: int) -> Optional[str]:
-    """
-    Request a hint on step 3+ if USE_HINTS is enabled.
-    Returns hint text or None.
-    """
-    if not USE_HINTS:
-        return None
-    if step < 3:
+def maybe_request_hint(step: int) -> Optional[str]:
+    if not USE_HINTS or step < 3:
         return None
     try:
-        r = httpx.post(f"{env_base_url}/hint", timeout=10)
+        r = httpx.post(f"{ENV_BASE_URL}/hint", timeout=10)
         if r.status_code == 200:
-            data = r.json()
-            return data.get("hint", "")
+            return r.json().get("hint")
     except Exception:
         pass
     return None
@@ -216,33 +225,37 @@ def maybe_request_hint(env_base_url: str, step: int, max_steps: int) -> Optional
 # Run one task episode
 # ---------------------------------------------------------------------------
 
-def run_task(
-    llm: OpenAI,
-    env_client,
-    task_id: str,
-) -> tuple[float, list[dict]]:
+def run_task(llm: OpenAI, task_id: str) -> tuple[float, str, int]:
     """
-    Run one full episode for task_id.
-
-    Returns:
-        (final_reward, step_log)
+    Run one episode. Returns (final_reward, episode_id, total_steps).
+    Emits mandatory [START], [STEP], [END] logs.
     """
-    obs = env_client.reset(task_id=task_id)
-    print(f"\n  Task: {task_id}  (max_steps={obs.max_steps})")
-    print(f"  Broken: {obs.broken_query[:70].replace(chr(10), ' ')}...")
+    # Reset episode
+    r = httpx.post(
+        f"{ENV_BASE_URL}/reset",
+        json={"task_id": task_id},
+        timeout=30,
+    )
+    r.raise_for_status()
+    obs = r.json()
 
-    step_log = []
+    episode_id = obs.get("episode_id", f"ep_{task_id}_{int(time.time())}")
+
+    # ── MANDATORY: emit [START] ──────────────────────────────────────────
+    log_start(task_id=task_id, episode_id=episode_id)
+
+    t_start = time.time()
     final_reward = 0.0
+    total_steps = 0
 
     for step in range(1, MAX_STEPS + 1):
-        if obs.done:
-            print(f"  Done at step {step - 1}.")
+        if obs.get("done"):
             break
 
-        # Maybe request a hint
-        hint = maybe_request_hint(ENV_BASE_URL, step, obs.max_steps)
+        # Optional hint
+        hint = maybe_request_hint(step)
         if hint:
-            print(f"  [Hint requested] {hint[:80]}...")
+            print(f"  [Hint] {hint[:80]}...", flush=True)
 
         # Build prompt and call LLM
         user_prompt = build_prompt(obs, step)
@@ -258,80 +271,65 @@ def run_task(
             )
             raw = completion.choices[0].message.content or ""
         except Exception as exc:
-            print(f"  ⚠️  LLM call failed: {exc}")
+            print(f"  ⚠️  LLM call failed: {exc}", flush=True)
             raw = "SELECT 1;"
 
         sql = extract_sql(raw)
-        print(f"  Step {step}: {sql[:65].replace(chr(10), ' ')}...")
 
         # Submit to environment
-        obs = env_client.step(SQLAction(sql_query=sql, reasoning=f"Step {step} attempt"))
-        final_reward = obs.reward
+        step_r = httpx.post(
+            f"{ENV_BASE_URL}/step",
+            json={"action": {"sql_query": sql, "reasoning": f"Step {step}"}},
+            timeout=30,
+        )
+        step_r.raise_for_status()
+        obs = step_r.json()
 
-        # Log step
-        log_entry = {
-            "step": step,
-            "reward": obs.reward,
-            "correctness": obs.reward_breakdown.correctness if obs.reward_breakdown else 0.0,
-            "efficiency": obs.reward_breakdown.efficiency if obs.reward_breakdown else 0.0,
-            "error": obs.error_message,
-            "done": obs.done,
-        }
-        step_log.append(log_entry)
+        final_reward = obs.get("reward", 0.0)
+        total_steps = step
 
-        # Print step result
-        bd = obs.reward_breakdown
-        print(
-            f"  → reward={obs.reward:.4f}"
-            + (f" correct={bd.correctness:.2f}" if bd else "")
-            + (f" error={obs.error_message[:50]}" if obs.error_message else "")
-            + (" ✅ DONE" if obs.done else "")
+        # ── MANDATORY: emit [STEP] ───────────────────────────────────────
+        log_step(
+            episode_id=episode_id,
+            step=step,
+            sql_query=sql,
+            reward=final_reward,
+            done=obs.get("done", False),
+            error=obs.get("error_message"),
         )
 
-        if obs.done:
+        if obs.get("done"):
             break
 
-    return final_reward, step_log
+    elapsed = time.time() - t_start
 
+    # ── MANDATORY: emit [END] ────────────────────────────────────────────
+    log_end(
+        episode_id=episode_id,
+        task_id=task_id,
+        final_reward=final_reward,
+        total_steps=total_steps,
+        elapsed_seconds=elapsed,
+    )
 
-# ---------------------------------------------------------------------------
-# Curriculum mode
-# ---------------------------------------------------------------------------
-
-def get_curriculum_task(env_base_url: str) -> Optional[str]:
-    """Get the next recommended task from curriculum endpoint."""
-    try:
-        r = httpx.post(f"{env_base_url}/curriculum/next", timeout=10)
-        if r.status_code == 200:
-            data = r.json()
-            return data.get("recommended_task")
-    except Exception:
-        pass
-    return None
+    return final_reward, episode_id, total_steps
 
 
 # ---------------------------------------------------------------------------
 # Submit to leaderboard
 # ---------------------------------------------------------------------------
 
-def submit_to_leaderboard(env_base_url: str, mean_score: float, episodes: int) -> None:
-    """Submit final scores to the environment leaderboard."""
+def submit_leaderboard(mean_score: float, episodes: int) -> None:
     try:
-        payload = {
-            "model_name": MODEL_NAME,
-            "mean_score": mean_score,
-            "episodes": episodes,
-        }
         r = httpx.post(
-            f"{env_base_url}/leaderboard/submit",
-            json=payload,
+            f"{ENV_BASE_URL}/leaderboard/submit",
+            json={"model_name": MODEL_NAME, "mean_score": mean_score, "episodes": episodes},
             timeout=10,
         )
         if r.status_code == 200:
-            rank = r.json().get("rank", "?")
-            print(f"\n  Leaderboard: submitted! Rank #{rank}")
-    except Exception as exc:
-        print(f"\n  Leaderboard submit failed: {exc}")
+            print(f"\n  Leaderboard rank: #{r.json().get('rank','?')}", flush=True)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -340,100 +338,80 @@ def submit_to_leaderboard(env_base_url: str, mean_score: float, episodes: int) -
 
 def main() -> None:
     print("=" * 62)
-    print(" SQL Debug Environment v3.0 — Baseline Inference")
+    print(" SQL Debug Environment v3.0 — Inference")
     print("=" * 62)
-    print(f"  API_BASE_URL  : {API_BASE_URL}")
-    print(f"  MODEL_NAME    : {MODEL_NAME}")
-    print(f"  ENV_BASE_URL  : {ENV_BASE_URL}")
-    print(f"  MAX_STEPS     : {MAX_STEPS}")
-    print(f"  CURRICULUM    : {'on' if CURRICULUM_MODE else 'off'}")
-    print(f"  USE_HINTS     : {'on' if USE_HINTS else 'off'}")
-    print(f"  TASKS         : {len(TASK_IDS)}")
-    print("=" * 62)
+    print(f"  MODEL        : {MODEL_NAME}")
+    print(f"  ENV_BASE_URL : {ENV_BASE_URL}")
+    print(f"  MAX_STEPS    : {MAX_STEPS}")
+    print(f"  TASKS        : {len(TASK_IDS)}")
+    print("=" * 62, flush=True)
 
-    # Validate required env vars
     if not API_KEY:
-        print("\nERROR: HF_TOKEN or API_KEY environment variable not set.")
+        print("ERROR: HF_TOKEN or API_KEY not set.", flush=True)
         sys.exit(1)
 
     # Health check
     try:
         r = httpx.get(f"{ENV_BASE_URL}/health", timeout=15)
         r.raise_for_status()
-        info = r.json()
-        print(f"\n✅ Server: {info.get('environment')} v{info.get('version')} — OK")
+        v = r.json().get("version", "?")
+        print(f"\n✅ Server OK — v{v}\n", flush=True)
     except Exception as exc:
-        print(f"\n❌ Server health check FAILED: {exc}")
-        print(f"   Is the environment running at {ENV_BASE_URL}?")
+        print(f"\n❌ Server health check failed: {exc}", flush=True)
         sys.exit(1)
 
-    # Create LLM client (OpenAI-compatible)
     llm = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-
     scores: dict[str, float] = {}
-    all_step_logs: dict[str, list] = {}
-    t_start = time.time()
+    t_total = time.time()
 
-    with SQLDebugEnv(base_url=ENV_BASE_URL).sync() as env:
+    for task_id in TASK_IDS:
+        print(f"\n{'─'*55}")
+        print(f"  Task: {task_id}")
+        print(f"{'─'*55}", flush=True)
 
-        # In curriculum mode, get recommended task order
-        task_list = TASK_IDS
-        if CURRICULUM_MODE:
-            print("\n  Curriculum mode: running tasks in progressive order")
-
-        for task_id in task_list:
-            print(f"\n{'─' * 55}")
-            print(f"  Running: {task_id}")
-            print(f"{'─' * 55}")
-
-            task_start = time.time()
-            score, step_log = run_task(llm, env, task_id)
-            elapsed = time.time() - task_start
-
+        try:
+            score, ep_id, steps = run_task(llm, task_id)
             scores[task_id] = score
-            all_step_logs[task_id] = step_log
-            print(f"\n  Final score: {score:.4f}  ({elapsed:.1f}s)")
+            print(f"  Score: {score:.4f}  Steps: {steps}", flush=True)
+        except Exception as exc:
+            print(f"  ❌ Task failed: {exc}", flush=True)
+            scores[task_id] = 0.0
 
-            # Check total runtime budget
-            if time.time() - t_start > 1100:  # 18.3 min safety margin
-                print("\n  ⚠️  Approaching 20min limit — stopping early.")
-                break
+        # 20-minute runtime guard
+        if time.time() - t_total > 1100:
+            print("\n  ⚠️  Approaching 20min limit — stopping.", flush=True)
+            break
 
-    total_elapsed = time.time() - t_start
-    mean_score = sum(scores.values()) / len(scores) if scores else 0.0
+    elapsed_total = time.time() - t_total
+    mean = sum(scores.values()) / len(scores) if scores else 0.0
 
-    # Print final results
-    print(f"\n{'=' * 62}")
-    print(" BASELINE SCORES")
-    print(f"{'=' * 62}")
-    for task_id, score in scores.items():
-        bar = "█" * int(score * 25)
-        status = "✅" if score >= 0.8 else "⚠️ " if score >= 0.5 else "❌"
-        print(f"  {status} {task_id:<28} {score:.4f}  |{bar:<25}|")
+    # Final summary
+    print(f"\n{'='*62}")
+    print(" RESULTS")
+    print(f"{'='*62}")
+    for tid, sc in scores.items():
+        bar = "█" * int(sc * 25)
+        status = "✅" if sc >= 0.8 else "⚠️ " if sc >= 0.5 else "❌"
+        print(f"  {status} {tid:<30} {sc:.4f}  |{bar:<25}|")
 
-    print(f"\n  Mean score  : {mean_score:.4f}")
-    print(f"  Tasks run   : {len(scores)}/{len(TASK_IDS)}")
-    print(f"  Total time  : {total_elapsed:.1f}s")
-    print(f"{'=' * 62}")
+    print(f"\n  Mean   : {mean:.4f}")
+    print(f"  Tasks  : {len(scores)}/{len(TASK_IDS)}")
+    print(f"  Time   : {elapsed_total:.1f}s")
+    print(f"{'='*62}", flush=True)
 
-    # Machine-readable JSON output (for automated evaluation)
+    # Machine-readable JSON
     result = {
         "scores": scores,
-        "mean_score": round(mean_score, 4),
+        "mean_score": round(mean, 4),
         "model": MODEL_NAME,
         "tasks_run": len(scores),
         "tasks_solved": sum(1 for s in scores.values() if s >= 0.8),
-        "total_elapsed_seconds": round(total_elapsed, 2),
-        "curriculum_mode": CURRICULUM_MODE,
-        "hints_enabled": USE_HINTS,
-        "step_logs": all_step_logs,
+        "elapsed_seconds": round(elapsed_total, 2),
     }
+    print("\nJSON:")
+    print(json.dumps(result, indent=2), flush=True)
 
-    print("\nJSON (for automated evaluation):")
-    print(json.dumps({k: v for k, v in result.items() if k != "step_logs"}, indent=2))
-
-    # Submit to leaderboard
-    submit_to_leaderboard(ENV_BASE_URL, mean_score, len(scores))
+    submit_leaderboard(mean, len(scores))
 
 
 if __name__ == "__main__":

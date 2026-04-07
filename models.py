@@ -1,10 +1,13 @@
 """
-models.py — Typed Pydantic models for the SQL Debug Environment v3.0
+models.py — SQL Debug Environment v3.0 — Advanced Typed Models
 
-Advanced features added:
-  - conversation_history: multi-turn memory in every observation
-  - query_analysis: EXPLAIN plan summary
-  - hint_available / hints_used: hint system state
+Enhancements over baseline:
+  - QueryComplexity: classifies query structural complexity
+  - PerformanceMetrics: detailed timing breakdown
+  - RewardBreakdown: richer with column/row coverage scores
+  - SQLObservation: episode_id exposed, performance_metrics, complexity
+  - EpisodeSummary: full episode analytics returned on done=True
+  - SQLState: tracks best_reward, solved flag, hint_penalty_total
 """
 from __future__ import annotations
 
@@ -19,71 +22,98 @@ from pydantic import BaseModel, Field
 
 class SQLAction(BaseModel):
     """Action submitted by the agent each step."""
-
-    sql_query: str = Field(
-        ...,
-        description="SQL query to execute against the environment database.",
-    )
-    reasoning: Optional[str] = Field(
-        default=None,
-        description="Optional chain-of-thought reasoning (logged, not evaluated).",
-    )
-
-    def __init__(self, **data: Any) -> None:
-        data.setdefault("reasoning", None)
-        super().__init__(**data)
+    sql_query: str = Field(..., description="SQL query to execute.")
+    reasoning: Optional[str] = Field(default=None, description="Optional chain-of-thought.")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "sql_query": "SELECT id, name, email FROM customers WHERE tier = 'vip' ORDER BY name;",
-                "reasoning": "Fixed all three typos in the keywords.",
+                "reasoning": "Fixed SELEC→SELECT, FORM→FROM, ORDR BY→ORDER BY",
             }
         }
 
 
 # ---------------------------------------------------------------------------
-# Reward breakdown
+# Reward breakdown — now with column_coverage and row_coverage
 # ---------------------------------------------------------------------------
 
 class RewardBreakdown(BaseModel):
     """Detailed decomposition of the reward signal."""
-
     total: float = Field(default=0.0, ge=0.0, le=1.0)
     correctness: float = Field(default=0.0, ge=0.0, le=1.0)
     efficiency: float = Field(default=0.0, ge=0.0, le=1.0)
     step_penalty: float = Field(default=1.0, ge=0.0, le=1.0)
+    row_coverage: float = Field(default=0.0, ge=0.0, le=1.0,
+        description="Fraction of expected rows returned.")
+    column_coverage: float = Field(default=0.0, ge=0.0, le=1.0,
+        description="Fraction of expected columns present.")
+    hint_penalty: float = Field(default=0.0, ge=0.0, le=0.3,
+        description="Cumulative hint penalty applied.")
     explanation: str = Field(default="")
 
-    def __init__(self, **data: Any) -> None:
-        data.setdefault("total", 0.0)
-        data.setdefault("correctness", 0.0)
-        data.setdefault("efficiency", 0.0)
-        data.setdefault("step_penalty", 1.0)
-        data.setdefault("explanation", "")
-        super().__init__(**data)
+
+# ---------------------------------------------------------------------------
+# Query complexity classifier
+# ---------------------------------------------------------------------------
+
+class QueryComplexity(BaseModel):
+    """Structural complexity of the submitted SQL query."""
+    has_join: bool = False
+    has_subquery: bool = False
+    has_aggregation: bool = False
+    has_window_function: bool = False
+    has_cte: bool = False
+    has_group_by: bool = False
+    has_order_by: bool = False
+    has_where: bool = False
+    join_count: int = 0
+    subquery_depth: int = 0
+    complexity_score: float = Field(default=0.0, ge=0.0, le=1.0,
+        description="Normalised 0-1 complexity estimate.")
+    label: str = Field(default="simple",
+        description="simple | moderate | complex | advanced")
 
 
 # ---------------------------------------------------------------------------
-# Query analysis (EXPLAIN output)
+# Performance metrics
 # ---------------------------------------------------------------------------
 
-class QueryAnalysis(BaseModel):
-    """Structured summary of EXPLAIN QUERY PLAN output."""
-
-    scan_count: int = Field(default=0, description="Number of full table scans.")
-    uses_index: bool = Field(default=False, description="Whether any index is used.")
-    tables_scanned: list[str] = Field(default_factory=list)
+class PerformanceMetrics(BaseModel):
+    """Detailed timing and query plan metrics."""
+    execution_ms: float = Field(default=0.0)
+    baseline_ms: float = Field(default=0.0)
+    speedup_ratio: float = Field(default=0.0,
+        description="baseline_ms / execution_ms. >1 means faster than baseline.")
+    scan_count: int = Field(default=0)
+    index_count: int = Field(default=0)
+    uses_index: bool = False
     plan_steps: int = Field(default=0)
-    suggestion: str = Field(default="", description="Performance suggestion.")
+    tables_scanned: list[str] = Field(default_factory=list)
+    suggestion: str = Field(default="")
+    efficiency_score: float = Field(default=0.0, ge=0.0, le=1.0)
 
-    def __init__(self, **data: Any) -> None:
-        data.setdefault("scan_count", 0)
-        data.setdefault("uses_index", False)
-        data.setdefault("tables_scanned", [])
-        data.setdefault("plan_steps", 0)
-        data.setdefault("suggestion", "")
-        super().__init__(**data)
+
+# ---------------------------------------------------------------------------
+# Episode summary — returned when done=True
+# ---------------------------------------------------------------------------
+
+class EpisodeSummary(BaseModel):
+    """Analytics summary emitted when episode terminates."""
+    episode_id: str = ""
+    task_id: str = ""
+    total_steps: int = 0
+    final_reward: float = 0.0
+    best_reward: float = 0.0
+    solved: bool = False
+    hints_used: int = 0
+    hint_penalty_total: float = 0.0
+    cumulative_reward: float = 0.0
+    termination_reason: str = Field(default="",
+        description="solved | max_steps | truncated")
+    step_rewards: list[float] = Field(default_factory=list)
+    improvement_rate: float = Field(default=0.0,
+        description="Avg reward improvement per step.")
 
 
 # ---------------------------------------------------------------------------
@@ -91,66 +121,53 @@ class QueryAnalysis(BaseModel):
 # ---------------------------------------------------------------------------
 
 class SQLObservation(BaseModel):
-    """
-    Observation returned by the environment after reset() and each step().
+    """Full observation returned after reset() and each step()."""
 
-    Advanced fields:
-      conversation_history : last 5 turns with SQL, error, reward
-      query_analysis       : EXPLAIN plan summary
-      hint_available       : whether hints remain unused
-      hints_used           : how many hints taken this episode
-    """
+    # Identity
+    episode_id: str = Field(default="", description="UUID of current episode.")
+    task_id: str = Field(..., description="Active task identifier.")
 
     # Task context
-    task_id: str = Field(..., description="Active task identifier.")
-    task_description: str = Field(..., description="Full task description.")
-    broken_query: str = Field(..., description="Original broken/slow query.")
-    schema_hint: str = Field(..., description="DDL + sample data context.")
+    task_description: str = Field(...)
+    broken_query: str = Field(...)
+    schema_hint: str = Field(...)
 
     # Execution feedback
     error_message: Optional[str] = Field(default=None)
     query_result: Optional[list[dict[str, Any]]] = Field(default=None)
+    row_count: int = Field(default=0, description="Rows returned by query.")
+
+    # Performance
     execution_time_ms: Optional[float] = Field(default=None)
+    performance_metrics: Optional[PerformanceMetrics] = Field(default=None)
+
+    # Query intelligence
+    query_analysis: Optional[PerformanceMetrics] = Field(
+        default=None, description="Alias for performance_metrics (backward compat).")
+    query_complexity: Optional[QueryComplexity] = Field(default=None)
 
     # Reward
     reward: float = Field(default=0.0, ge=0.0, le=1.0)
     reward_breakdown: Optional[RewardBreakdown] = Field(default=None)
 
-    # Advanced: multi-turn memory
+    # Multi-turn memory
     conversation_history: list[dict[str, Any]] = Field(
         default_factory=list,
-        description="Last 5 steps: sql, error, reward, result_count.",
-    )
+        description="Last 5 steps with sql, error, reward, result_count.")
 
-    # Advanced: query analysis
-    query_analysis: Optional[QueryAnalysis] = Field(
-        default=None,
-        description="EXPLAIN QUERY PLAN summary.",
-    )
-
-    # Advanced: hint system
+    # Hint system
     hint_available: bool = Field(default=True)
     hints_used: int = Field(default=0)
+    hint_penalty: float = Field(default=0.0)
 
-    # Episode metadata
+    # Episode state
     step_count: int = Field(default=0)
     max_steps: int = Field(default=10)
     done: bool = Field(default=False)
+    best_reward_so_far: float = Field(default=0.0)
 
-    def __init__(self, **data: Any) -> None:
-        data.setdefault("error_message", None)
-        data.setdefault("query_result", None)
-        data.setdefault("execution_time_ms", None)
-        data.setdefault("reward", 0.0)
-        data.setdefault("reward_breakdown", None)
-        data.setdefault("conversation_history", [])
-        data.setdefault("query_analysis", None)
-        data.setdefault("hint_available", True)
-        data.setdefault("hints_used", 0)
-        data.setdefault("step_count", 0)
-        data.setdefault("done", False)
-        data.setdefault("max_steps", 10)
-        super().__init__(**data)
+    # Episode summary (only when done=True)
+    episode_summary: Optional[EpisodeSummary] = Field(default=None)
 
 
 # ---------------------------------------------------------------------------
@@ -159,14 +176,18 @@ class SQLObservation(BaseModel):
 
 @dataclass
 class SQLState:
-    """Episode-level metadata returned by state() property."""
+    """Episode-level metadata."""
     episode_id: str = ""
     step_count: int = 0
     task_id: str = ""
     max_steps: int = 0
     done: bool = False
     last_reward: float = 0.0
+    best_reward: float = 0.0
     cumulative_reward: float = 0.0
+    solved: bool = False
+    hints_used: int = 0
+    hint_penalty: float = 0.0
     extra: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -177,6 +198,10 @@ class SQLState:
             "max_steps": self.max_steps,
             "done": self.done,
             "last_reward": self.last_reward,
+            "best_reward": self.best_reward,
             "cumulative_reward": self.cumulative_reward,
+            "solved": self.solved,
+            "hints_used": self.hints_used,
+            "hint_penalty": self.hint_penalty,
             **self.extra,
         }

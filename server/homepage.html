@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>SQL Debug Environment — v3.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#03060f;--s1:#071020;--s2:#0b1830;--card:#0d1f35;
+  --border:#122040;--border2:#1a3050;
+  --cyan:#00d4ff;--blue:#3b82f6;--violet:#8b5cf6;
+  --green:#10b981;--amber:#f59e0b;--red:#ef4444;--pink:#ec4899;
+  --text:#e8f4ff;--muted:#5a7a9a;--dim:#2a4060;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Outfit',sans-serif;
+  --glow-cyan:rgba(0,212,255,.15);
+  --glow-blue:rgba(59,130,246,.12);
+  --glow-violet:rgba(139,92,246,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;overflow-x:hidden}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+
+/* ═══ NOISE TEXTURE ═══ */
+body::after{
+  content:'';position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:999;opacity:.5;
+}
+
+/* ═══ GRID ═══ */
+.grid-bg{
+  position:fixed;inset:0;z-index:0;
+  background-image:
+    linear-gradient(rgba(0,212,255,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,212,255,.025) 1px,transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 80% 80% at 50% 50%,black,transparent);
+}
+
+/* ═══ ORBS ═══ */
+.orb{position:fixed;border-radius:50%;filter:blur(100px);pointer-events:none;z-index:0;will-change:transform}
+.o1{width:700px;height:700px;top:-300px;left:-200px;background:radial-gradient(circle,rgba(0,80,160,.25),transparent 65%);animation:o1 25s ease-in-out infinite alternate}
+.o2{width:500px;height:500px;bottom:-150px;right:-100px;background:radial-gradient(circle,rgba(0,212,255,.1),transparent 65%);animation:o1 20s 5s ease-in-out infinite alternate}
+.o3{width:400px;height:400px;top:40%;left:60%;background:radial-gradient(circle,rgba(139,92,246,.08),transparent 65%);animation:o1 18s 8s ease-in-out infinite alternate}
+@keyframes o1{0%{transform:translate(0,0) scale(1)}100%{transform:translate(50px,40px) scale(1.1)}}
+
+/* ═══ NAV ═══ */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  height:60px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 32px;
+  background:rgba(3,6,15,.75);
+  backdrop-filter:blur(24px) saturate(180%);
+  border-bottom:1px solid rgba(0,212,255,.08);
+}
+.nav-left{display:flex;align-items:center;gap:16px}
+.nav-logo{
+  font-family:var(--mono);font-size:13px;font-weight:700;
+  color:var(--cyan);letter-spacing:.1em;display:flex;align-items:center;gap:8px;
+}
+.pulsedot{
+  width:7px;height:7px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 8px var(--green);
+  animation:pd 2.5s ease-in-out infinite;
+}
+@keyframes pd{0%,100%{opacity:1;box-shadow:0 0 8px var(--green)}50%{opacity:.3;box-shadow:0 0 2px var(--green)}}
+.nav-ver{
+  font-family:var(--mono);font-size:10px;color:var(--muted);
+  background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.12);
+  padding:2px 8px;border-radius:4px;
+}
+.nav-right{display:flex;gap:6px;align-items:center}
+.nl{
+  padding:5px 14px;border-radius:6px;font-size:12px;font-weight:600;
+  text-decoration:none;color:var(--muted);letter-spacing:.02em;
+  transition:all .18s;border:1px solid transparent;
+}
+.nl:hover{color:var(--text);border-color:var(--border2)}
+.nl-cta{
+  background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.25);
+  color:var(--cyan) !important;
+}
+.nl-cta:hover{background:rgba(0,212,255,.18) !important;box-shadow:0 0 20px rgba(0,212,255,.15)}
+
+/* ═══ HERO ═══ */
+.hero{
+  min-height:100vh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:100px 24px 60px;text-align:center;
+  position:relative;z-index:1;
+}
+.hero-chip{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:var(--mono);font-size:10px;font-weight:500;
+  color:var(--cyan);letter-spacing:.14em;text-transform:uppercase;
+  background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.15);
+  padding:6px 16px;border-radius:50px;margin-bottom:40px;
+  animation:fadeup .5s ease both;
+}
+.hero-h{
+  font-size:clamp(3.5rem,9vw,7.5rem);font-weight:900;
+  line-height:.95;letter-spacing:-.04em;
+  margin-bottom:24px;
+  animation:fadeup .6s .1s ease both;
+}
+.hero-h .w1{
+  display:block;color:var(--text);
+}
+.hero-h .w2{
+  display:block;
+  background:linear-gradient(135deg,var(--cyan) 0%,var(--blue) 50%,var(--violet) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  filter:drop-shadow(0 0 30px rgba(0,212,255,.3));
+}
+.hero-sub{
+  font-size:1.1rem;font-weight:300;color:var(--muted);
+  max-width:580px;line-height:1.8;margin:0 auto 48px;
+  animation:fadeup .6s .2s ease both;
+}
+.hero-sub strong{color:var(--text);font-weight:600}
+.pills{
+  display:flex;gap:8px;flex-wrap:wrap;justify-content:center;
+  margin-bottom:48px;animation:fadeup .6s .25s ease both;
+}
+.pill{
+  font-family:var(--mono);font-size:10px;font-weight:500;
+  letter-spacing:.06em;padding:5px 12px;border-radius:50px;
+}
+.p-c{background:rgba(0,212,255,.08);color:var(--cyan);border:1px solid rgba(0,212,255,.2)}
+.p-b{background:rgba(59,130,246,.08);color:#60a5fa;border:1px solid rgba(59,130,246,.2)}
+.p-v{background:rgba(139,92,246,.08);color:#a78bfa;border:1px solid rgba(139,92,246,.2)}
+.p-g{background:rgba(16,185,129,.08);color:#34d399;border:1px solid rgba(16,185,129,.2)}
+.p-a{background:rgba(245,158,11,.08);color:#fbbf24;border:1px solid rgba(245,158,11,.2)}
+.cta-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;animation:fadeup .6s .3s ease both}
+.btn{
+  padding:13px 28px;border-radius:8px;
+  font-family:var(--sans);font-size:14px;font-weight:700;
+  letter-spacing:.03em;text-decoration:none;cursor:pointer;border:none;
+  display:inline-flex;align-items:center;gap:8px;
+  transition:all .2s;position:relative;overflow:hidden;
+}
+.btn-main{
+  background:var(--cyan);color:#000;
+}
+.btn-main::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,transparent 40%,rgba(255,255,255,.25));
+  opacity:0;transition:opacity .2s;
+}
+.btn-main:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,212,255,.4)}
+.btn-main:hover::before{opacity:1}
+.btn-out{
+  background:transparent;color:var(--text);
+  border:1px solid var(--border2);
+}
+.btn-out:hover{border-color:rgba(0,212,255,.4);color:var(--cyan);transform:translateY(-2px)}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-ghost:hover{color:var(--text);border-color:var(--border2)}
+
+/* ═══ TERMINAL ═══ */
+.terminal-wrap{
+  width:100%;max-width:800px;margin:70px auto 0;
+  position:relative;animation:fadeup .7s .4s ease both;
+}
+.terminal-glow{
+  position:absolute;inset:-1px;border-radius:14px;
+  background:linear-gradient(135deg,rgba(0,212,255,.2),rgba(59,130,246,.1),rgba(139,92,246,.1));
+  filter:blur(1px);z-index:0;
+}
+.terminal{
+  position:relative;z-index:1;
+  background:#050e1c;
+  border:1px solid rgba(0,212,255,.12);
+  border-radius:12px;overflow:hidden;
+  box-shadow:0 40px 80px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.03);
+}
+.tbar{
+  display:flex;align-items:center;gap:8px;
+  padding:12px 16px;
+  background:rgba(255,255,255,.02);
+  border-bottom:1px solid rgba(0,212,255,.06);
+}
+.tdot{width:12px;height:12px;border-radius:50%}
+.td1{background:#ff5f57}.td2{background:#ffbd2e}.td3{background:#28c940}
+.tlabel{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:8px;letter-spacing:.04em}
+.tstatus{
+  margin-left:auto;font-family:var(--mono);font-size:10px;
+  color:var(--green);background:rgba(16,185,129,.08);
+  border:1px solid rgba(16,185,129,.15);padding:2px 8px;border-radius:4px;
+}
+.tbody{padding:24px 28px;font-family:var(--mono);font-size:12.5px;line-height:2.1;overflow-x:auto}
+.tc{color:var(--muted)}.tk{color:var(--cyan)}.tv{color:var(--green)}
+.ts{color:#fbbf24}.tn{color:#f97316}.tg{color:var(--violet);font-weight:700}
+.tb2{color:#60a5fa}.tcur{
+  display:inline-block;width:8px;height:14px;
+  background:var(--cyan);vertical-align:middle;
+  animation:blink .9s step-end infinite;
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* ═══ METRICS STRIP ═══ */
+.strip{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  position:relative;z-index:1;
+}
+@media(max-width:640px){.strip{grid-template-columns:repeat(2,1fr)}}
+.strip-cell{
+  padding:36px 24px;text-align:center;
+  border-right:1px solid var(--border);
+  position:relative;overflow:hidden;cursor:default;
+  transition:background .3s;
+}
+.strip-cell:last-child{border-right:none}
+.strip-cell:hover{background:rgba(0,212,255,.03)}
+.strip-cell::after{
+  content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+  width:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--cyan),transparent);
+  transition:width .4s;
+}
+.strip-cell:hover::after{width:80%}
+.sn{
+  font-family:var(--mono);font-size:2.8rem;font-weight:700;
+  line-height:1;margin-bottom:8px;display:block;
+  background:linear-gradient(135deg,var(--text),var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.sn.g{background:linear-gradient(135deg,var(--text),var(--green));-webkit-background-clip:text;background-clip:text}
+.sn.v{background:linear-gradient(135deg,var(--text),var(--violet));-webkit-background-clip:text;background-clip:text}
+.sn.a{background:linear-gradient(135deg,var(--text),var(--amber));-webkit-background-clip:text;background-clip:text}
+.sl{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+
+/* ═══ SECTIONS ═══ */
+section{position:relative;z-index:1}
+.sec{padding:100px 32px}
+.sec-max{max-width:1120px;margin:0 auto}
+.sh{text-align:center;margin-bottom:64px}
+.sh-eye{
+  font-family:var(--mono);font-size:10px;font-weight:700;
+  letter-spacing:.16em;text-transform:uppercase;
+  color:var(--cyan);display:block;margin-bottom:14px;
+  opacity:.8;
+}
+.sh-t{
+  font-size:clamp(2rem,4vw,3.2rem);font-weight:800;
+  letter-spacing:-.025em;line-height:1.1;color:var(--text);
+}
+.sh-sub{color:var(--muted);font-size:14px;margin-top:12px;line-height:1.7;max-width:520px;margin-inline:auto}
+
+/* ═══ FEATURE GRID ═══ */
+.fgrid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
+  background:var(--border);border:1px solid var(--border);
+  border-radius:16px;overflow:hidden;
+}
+@media(max-width:900px){.fgrid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:540px){.fgrid{grid-template-columns:1fr}}
+.fcard{
+  background:var(--card);padding:32px;
+  position:relative;overflow:hidden;
+  transition:background .25s;
+}
+.fcard:hover{background:#102230}
+.fcard::before{
+  content:'';position:absolute;
+  top:-80px;right:-80px;
+  width:200px;height:200px;border-radius:50%;
+  opacity:0;transition:opacity .4s;
+  filter:blur(40px);
+}
+.fc-c::before{background:var(--glow-cyan)}
+.fc-b::before{background:var(--glow-blue)}
+.fc-v::before{background:var(--glow-violet)}
+.fcard:hover::before{opacity:1}
+.fcard::after{
+  content:'';position:absolute;
+  inset:0;border-top:1px solid transparent;
+  transition:border-color .3s;
+}
+.fc-c:hover::after{border-color:rgba(0,212,255,.15)}
+.fc-b:hover::after{border-color:rgba(59,130,246,.15)}
+.fc-v:hover::after{border-color:rgba(139,92,246,.15)}
+.ficon{
+  width:46px;height:46px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;margin-bottom:16px;
+}
+.fi-c{background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.15)}
+.fi-b{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.15)}
+.fi-v{background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.15)}
+.fi-g{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.15)}
+.fi-a{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.15)}
+.fi-p{background:rgba(236,72,153,.08);border:1px solid rgba(236,72,153,.15)}
+.ft{font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px}
+.fd{font-size:13px;color:var(--muted);line-height:1.75}
+.ftag{
+  display:inline-block;margin-top:16px;
+  font-family:var(--mono);font-size:10px;color:var(--cyan);
+  background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.12);
+  padding:3px 10px;border-radius:4px;letter-spacing:.04em;
+}
+.ftag.v{color:#a78bfa;background:rgba(139,92,246,.06);border-color:rgba(139,92,246,.12)}
+.ftag.g{color:#34d399;background:rgba(16,185,129,.06);border-color:rgba(16,185,129,.12)}
+.ftag.a{color:#fbbf24;background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.12)}
+
+/* ═══ TASK CARDS ═══ */
+.tgrid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+  gap:12px;
+}
+.tcard{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:12px;padding:22px;
+  position:relative;overflow:hidden;
+  transition:all .2s;cursor:default;
+}
+.tcard::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  transition:opacity .25s;
+}
+.te::before{background:var(--green);opacity:.7}
+.tm::before{background:var(--amber);opacity:.7}
+.th::before{background:var(--red);opacity:.7}
+.tx::before{background:var(--violet);opacity:.7}
+.tcard:hover{border-color:var(--border2);transform:translateY(-3px);background:#0f2035}
+.tcard:hover::before{opacity:1}
+.tcard-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.tid{font-family:var(--mono);font-size:11px;color:var(--cyan);font-weight:700;letter-spacing:.03em}
+.dbadge{
+  font-family:var(--mono);font-size:9px;font-weight:700;
+  padding:3px 8px;border-radius:4px;letter-spacing:.06em;text-transform:uppercase;flex-shrink:0;
+}
+.de{background:rgba(16,185,129,.1);color:#34d399;border:1px solid rgba(16,185,129,.18)}
+.dm{background:rgba(245,158,11,.1);color:#fbbf24;border:1px solid rgba(245,158,11,.18)}
+.dh{background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.18)}
+.dx{background:rgba(139,92,246,.1);color:#a78bfa;border:1px solid rgba(139,92,246,.18)}
+.tname{font-size:14px;font-weight:700;color:var(--text);margin-bottom:10px;line-height:1.3}
+.tmeta{display:flex;gap:14px;margin-bottom:12px}
+.tmi{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.tmi span{color:var(--text)}
+.sbar{background:var(--border);border-radius:2px;height:3px;overflow:hidden}
+.sbfill{height:100%;border-radius:2px}
+.sf-e{background:linear-gradient(90deg,var(--green),#34d399)}
+.sf-m{background:linear-gradient(90deg,var(--amber),#fbbf24)}
+.sf-h{background:linear-gradient(90deg,var(--red),#f97316)}
+.sf-x{background:linear-gradient(90deg,var(--violet),var(--blue))}
+
+/* ═══ REWARD VISUAL ═══ */
+.rwrap{max-width:680px;margin:48px auto 0;display:flex;flex-direction:column;gap:10px}
+.rrow{
+  display:flex;align-items:center;gap:16px;
+  padding:16px 20px;
+  background:var(--card);border:1px solid var(--border);
+  border-radius:10px;transition:all .2s;
+}
+.rrow:hover{border-color:var(--border2);background:#0f2035;transform:translateX(4px)}
+.rlabel{font-family:var(--mono);font-size:11px;color:var(--muted);min-width:160px}
+.rbar{flex:1;background:var(--border);border-radius:3px;height:8px;overflow:hidden}
+.rfi{height:8px;border-radius:3px;transition:width 1.2s cubic-bezier(.25,.46,.45,.94)}
+.rscore{font-family:var(--mono);font-size:13px;font-weight:700;min-width:44px;text-align:right}
+
+/* ═══ API SECTION ═══ */
+.api2{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+@media(max-width:768px){.api2{grid-template-columns:1fr}}
+.alist{display:flex;flex-direction:column;gap:6px}
+.aep{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;
+  background:var(--card);border:1px solid var(--border);
+  border-radius:8px;text-decoration:none;
+  transition:all .18s;
+}
+.aep:hover{border-color:rgba(0,212,255,.25);background:#0f2035;transform:translateX(4px)}
+.mget{
+  font-family:var(--mono);font-size:9px;font-weight:700;
+  padding:3px 7px;border-radius:4px;flex-shrink:0;letter-spacing:.04em;
+  background:rgba(16,185,129,.1);color:#34d399;border:1px solid rgba(16,185,129,.18);
+}
+.mpost{
+  font-family:var(--mono);font-size:9px;font-weight:700;
+  padding:3px 7px;border-radius:4px;flex-shrink:0;letter-spacing:.04em;
+  background:rgba(0,212,255,.1);color:var(--cyan);border:1px solid rgba(0,212,255,.18);
+}
+.ap{font-family:var(--mono);font-size:12px;color:var(--text);font-weight:700}
+.ad{font-size:11px;color:var(--muted);margin-left:auto}
+.codecard{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:12px;padding:24px;
+  display:flex;flex-direction:column;gap:16px;
+}
+.cctitle{font-size:15px;font-weight:700;color:var(--text)}
+.ccsub{font-size:13px;color:var(--muted);line-height:1.6}
+.codeblock{
+  background:#050e1c;border:1px solid var(--border);
+  border-radius:8px;padding:18px;
+  font-family:var(--mono);font-size:12px;line-height:2;
+  overflow-x:auto;
+}
+
+/* ═══ SCHEMA SECTION ═══ */
+.schema-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:12px;max-width:900px;margin:0 auto;
+}
+.scard{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:10px;padding:18px;transition:all .2s;
+}
+.scard:hover{border-color:var(--border2);background:#0f2035}
+.stable{font-family:var(--mono);font-size:12px;color:var(--cyan);font-weight:700;margin-bottom:10px}
+.scol{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  padding:3px 0;display:flex;justify-content:space-between;
+  border-bottom:1px solid rgba(18,32,64,.5);
+}
+.scol:last-child{border-bottom:none}
+.stype{color:var(--violet);font-size:10px}
+
+/* ═══ FOOTER ═══ */
+footer{
+  padding:40px 32px;
+  border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:16px;position:relative;z-index:1;
+}
+.fbrand{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.fbrand b{color:var(--cyan)}
+.flinks{display:flex;gap:16px;flex-wrap:wrap}
+.flink{font-size:12px;color:var(--muted);text-decoration:none;transition:color .15s}
+.flink:hover{color:var(--cyan)}
+
+/* ═══ DIVIDER ═══ */
+.div{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);position:relative;z-index:1}
+
+/* ═══ ANIMATIONS ═══ */
+@keyframes fadeup{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.vis{opacity:1;transform:translateY(0)}
+.reveal-d1{transition-delay:.1s}
+.reveal-d2{transition-delay:.2s}
+.reveal-d3{transition-delay:.3s}
+
+/* ═══ SCORE BADGE ═══ */
+.score-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-family:var(--mono);font-size:10px;font-weight:700;
+  padding:2px 8px;border-radius:4px;
+}
+.sb-high{background:rgba(16,185,129,.1);color:#34d399;border:1px solid rgba(16,185,129,.18)}
+.sb-med{background:rgba(245,158,11,.1);color:#fbbf24;border:1px solid rgba(245,158,11,.18)}
+.sb-low{background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.18)}
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-left">
+    <div class="nav-logo"><div class="pulsedot"></div>SQL_DEBUG_ENV</div>
+    <span class="nav-ver">v3.0.0</span>
+  </div>
+  <div class="nav-right">
+    <a href="/tester" class="nl">Tester</a>
+    <a href="/docs" class="nl">API Docs</a>
+    <a href="/tasks" class="nl">Tasks</a>
+    <a href="/stats" class="nl">Stats</a>
+    <a href="/leaderboard" class="nl">Leaderboard</a>
+    <a href="/tester" class="nl nl-cta">Launch ↗</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-chip"><div class="pulsedot"></div>OpenEnv · Scaler × Meta PyTorch Hackathon 2026</div>
+  <h1 class="hero-h">
+    <span class="w1">SQL Debug</span>
+    <span class="w2">Environment</span>
+  </h1>
+  <div class="pills">
+    <span class="pill p-c">OpenEnv Compatible</span>
+    <span class="pill p-g">8 Real-World Tasks</span>
+    <span class="pill p-v">Multi-Turn Memory</span>
+    <span class="pill p-a">Curriculum Learning</span>
+    <span class="pill p-b">EXPLAIN Analysis</span>
+    <span class="pill p-c">Query Complexity</span>
+    <span class="pill p-v">Episode Analytics</span>
+  </div>
+  <p class="hero-sub">
+    A <strong>production-grade RL environment</strong> where agents learn to debug, fix, and optimize
+    SQL queries — with non-sparse rewards, trajectory memory, complexity classification,
+    and progressive curriculum.
+  </p>
+  <div class="cta-row">
+    <a href="/tester" class="btn btn-main">⚡ Open Visual Tester</a>
+    <a href="/docs" class="btn btn-out">📚 API Docs</a>
+    <a href="/tasks" class="btn btn-ghost">View Tasks →</a>
+  </div>
+
+  <div class="terminal-wrap">
+    <div class="terminal-glow"></div>
+    <div class="terminal">
+      <div class="tbar">
+        <div class="tdot td1"></div><div class="tdot td2"></div><div class="tdot td3"></div>
+        <span class="tlabel">inference.py — SQL Debug Env v3.0</span>
+        <span class="tstatus">● RUNNING</span>
+      </div>
+      <div class="tbody">
+<span class="tc"># ── Episode 1: fix_syntax_error ─────────────────────</span>
+<span class="tg">[START]</span> <span class="tk">"task_id"</span>:<span class="ts">"fix_syntax_error"</span> <span class="tk">"episode_id"</span>:<span class="ts">"4fc9fbd8..."</span>
+<span class="tg">[STEP]</span>  <span class="tk">step</span>:<span class="tn">1</span>  <span class="tk">reward</span>:<span class="tv">1.0000</span>  <span class="tk">done</span>:<span class="tv">true</span>  <span class="tk">complexity</span>:<span class="ts">"simple"</span>
+<span class="tg">[END]</span>   <span class="tk">final_reward</span>:<span class="tv">1.0000</span>  <span class="tk">solved</span>:<span class="tv">true</span>  <span class="tk">steps</span>:<span class="tn">1</span>
+
+<span class="tc"># ── Episode 2: optimize_query ────────────────────────</span>
+<span class="tg">[START]</span> <span class="tk">"task_id"</span>:<span class="ts">"optimize_query"</span> <span class="tk">"episode_id"</span>:<span class="ts">"a7d3e291..."</span>
+<span class="tg">[STEP]</span>  <span class="tk">step</span>:<span class="tn">1</span>  <span class="tk">reward</span>:<span class="tv">0.9293</span>  <span class="tk">efficiency</span>:<span class="tv">0.9732</span>  <span class="tk">speedup</span>:<span class="tv">4.86x</span>
+<span class="tg">[END]</span>   <span class="tk">final_reward</span>:<span class="tv">0.9293</span>  <span class="tk">improvement_rate</span>:<span class="tv">0.0</span>  <span class="tk">hints</span>:<span class="tn">0</span>
+
+<span class="tc"># ── Final summary ────────────────────────────────────</span>
+<span class="tb2">mean_score</span>: <span class="tv">0.9811</span>  <span class="tb2">tasks_solved</span>: <span class="tv">8/8</span>  <span class="tb2">elapsed</span>: <span class="tv">38.4s</span>  <span class="tcur"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="div"></div>
+
+<!-- STATS STRIP -->
+<section class="strip" id="statstrip">
+  <div class="strip-cell reveal"><span class="sn" id="ep-count">0</span><div class="sl">Episodes run</div></div>
+  <div class="strip-cell reveal reveal-d1"><span class="sn g" id="step-count">0</span><div class="sl">Steps taken</div></div>
+  <div class="strip-cell reveal reveal-d2"><span class="sn v">0.9811</span><div class="sl">Mean score</div></div>
+  <div class="strip-cell reveal reveal-d3"><span class="sn a">8</span><div class="sl">Tasks available</div></div>
+</section>
+
+<!-- FEATURES -->
+<section class="sec">
+  <div class="sec-max">
+    <div class="sh reveal">
+      <span class="sh-eye">Advanced capabilities</span>
+      <h2 class="sh-t">Everything an RL agent needs</h2>
+      <p class="sh-sub">Every observation is information-rich. Every step returns a gradient signal.</p>
+    </div>
+    <div class="fgrid reveal">
+      <div class="fcard fc-c">
+        <div class="ficon fi-c">🧠</div>
+        <div class="ft">Multi-Turn Memory</div>
+        <div class="fd">Every observation includes the last 5 steps — SQL query, error message, reward, result count, query complexity label. Agents learn from failed attempts within the same episode.</div>
+        <span class="ftag">conversation_history</span>
+      </div>
+      <div class="fcard fc-b">
+        <div class="ficon fi-b">📊</div>
+        <div class="ft">Query Complexity Classifier</div>
+        <div class="fd">Automatically classifies every submitted query as simple / moderate / complex / advanced — detecting JOINs, subqueries, window functions, CTEs, aggregations.</div>
+        <span class="ftag v">query_complexity</span>
+      </div>
+      <div class="fcard fc-v">
+        <div class="ficon fi-v">⚡</div>
+        <div class="ft">EXPLAIN Performance Metrics</div>
+        <div class="fd">Full EXPLAIN QUERY PLAN summary with scan count, index usage, speedup ratio vs baseline, and efficiency score. Hard tasks reward faster queries.</div>
+        <span class="ftag g">performance_metrics</span>
+      </div>
+      <div class="fcard fc-c">
+        <div class="ficon fi-g">💡</div>
+        <div class="ft">3-Level Hint System</div>
+        <div class="fd">Progressive hints with configurable reward penalty. Level 1 gives direction, Level 2 identifies the bug, Level 3 gives the exact fix. Each costs 10% (max 30%).</div>
+        <span class="ftag">POST /hint</span>
+      </div>
+      <div class="fcard fc-b">
+        <div class="ficon fi-a">📈</div>
+        <div class="ft">Episode Analytics</div>
+        <div class="fd">When done=True, every response includes an EpisodeSummary: best_reward, improvement_rate, termination_reason, step_rewards array, and hint penalty breakdown.</div>
+        <span class="ftag v">episode_summary</span>
+      </div>
+      <div class="fcard fc-v">
+        <div class="ficon fi-p">🎓</div>
+        <div class="ft">Curriculum Learning</div>
+        <div class="fd">Auto-advances easy → medium → hard → expert when agent achieves avg ≥ 0.8 over 3 episodes. Full mastery progress tracking per task.</div>
+        <span class="ftag g">GET /curriculum</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="div"></div>
+
+<!-- TASKS -->
+<section class="sec" style="background:rgba(0,212,255,.01)">
+  <div class="sec-max">
+    <div class="sh reveal">
+      <span class="sh-eye">Task library</span>
+      <h2 class="sh-t">8 tasks · 4 difficulty levels</h2>
+      <p class="sh-sub">From trivial keyword typos to expert multi-dimensional aggregations.</p>
+    </div>
+    <div class="tgrid reveal" id="taskGrid"></div>
+  </div>
+</section>
+
+<!-- DATABASE SCHEMA -->
+<section class="sec">
+  <div class="sec-max">
+    <div class="sh reveal">
+      <span class="sh-eye">E-commerce database</span>
+      <h2 class="sh-t">Real schema, real data</h2>
+      <p class="sh-sub">10 customers · 11 products · 11 orders · 17 line items · 7 reviews. Fully seeded SQLite.</p>
+    </div>
+    <div class="schema-grid reveal">
+      <div class="scard">
+        <div class="stable">customers</div>
+        <div class="scol"><span>id</span><span class="stype">INTEGER PK</span></div>
+        <div class="scol"><span>name</span><span class="stype">TEXT</span></div>
+        <div class="scol"><span>email</span><span class="stype">TEXT UNIQUE</span></div>
+        <div class="scol"><span>region</span><span class="stype">US|EU|APAC</span></div>
+        <div class="scol"><span>tier</span><span class="stype">std|prem|vip</span></div>
+      </div>
+      <div class="scard">
+        <div class="stable">orders</div>
+        <div class="scol"><span>id</span><span class="stype">INTEGER PK</span></div>
+        <div class="scol"><span>customer_id</span><span class="stype">FK→customers</span></div>
+        <div class="scol"><span>status</span><span class="stype">pending|shipped…</span></div>
+        <div class="scol"><span>total_amount</span><span class="stype">REAL (stale)</span></div>
+        <div class="scol"><span>shipped_at</span><span class="stype">DATE</span></div>
+      </div>
+      <div class="scard">
+        <div class="stable">order_items</div>
+        <div class="scol"><span>id</span><span class="stype">INTEGER PK</span></div>
+        <div class="scol"><span>order_id</span><span class="stype">FK→orders</span></div>
+        <div class="scol"><span>product_id</span><span class="stype">FK→products</span></div>
+        <div class="scol"><span>quantity</span><span class="stype">INTEGER</span></div>
+        <div class="scol"><span>unit_price</span><span class="stype">REAL</span></div>
+      </div>
+      <div class="scard">
+        <div class="stable">products</div>
+        <div class="scol"><span>id</span><span class="stype">INTEGER PK</span></div>
+        <div class="scol"><span>name</span><span class="stype">TEXT</span></div>
+        <div class="scol"><span>category</span><span class="stype">elec|furn|stat</span></div>
+        <div class="scol"><span>unit_price</span><span class="stype">REAL</span></div>
+        <div class="scol"><span>active</span><span class="stype">0|1</span></div>
+      </div>
+      <div class="scard">
+        <div class="stable">reviews</div>
+        <div class="scol"><span>id</span><span class="stype">INTEGER PK</span></div>
+        <div class="scol"><span>product_id</span><span class="stype">FK→products</span></div>
+        <div class="scol"><span>customer_id</span><span class="stype">FK→customers</span></div>
+        <div class="scol"><span>rating</span><span class="stype">1–5</span></div>
+        <div class="scol"><span>created_at</span><span class="stype">DATE</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="div"></div>
+
+<!-- REWARD -->
+<section class="sec" style="background:linear-gradient(180deg,transparent,rgba(0,212,255,.02),transparent)">
+  <div class="sec-max">
+    <div class="sh reveal">
+      <span class="sh-eye">Reward design</span>
+      <h2 class="sh-t">Dense, non-sparse signals</h2>
+      <p class="sh-sub">Every step returns a meaningful gradient — from syntax errors to perfect solutions.</p>
+    </div>
+    <div class="rwrap reveal">
+      <div class="rrow"><div class="rlabel">Syntax/runtime error</div><div class="rbar"><div class="rfi" style="width:5%;background:#ef4444"></div></div><div class="rscore" style="color:#f87171">0.05</div></div>
+      <div class="rrow"><div class="rlabel">Runs, wrong result</div><div class="rbar"><div class="rfi" style="width:25%;background:#f59e0b"></div></div><div class="rscore" style="color:#fbbf24">0.25</div></div>
+      <div class="rrow"><div class="rlabel">50% rows matched</div><div class="rbar"><div class="rfi" style="width:50%;background:#6366f1"></div></div><div class="rscore" style="color:#a78bfa">0.50</div></div>
+      <div class="rrow"><div class="rlabel">Correct, step 3 penalty</div><div class="rbar"><div class="rfi" style="width:82%;background:#3b82f6"></div></div><div class="rscore" style="color:#60a5fa">0.82</div></div>
+      <div class="rrow"><div class="rlabel">Correct + fast (hard)</div><div class="rbar"><div class="rfi" style="width:94%;background:linear-gradient(90deg,#0ea5e9,#10b981)"></div></div><div class="rscore" style="color:#34d399">0.94</div></div>
+      <div class="rrow"><div class="rlabel">Perfect (step 1)</div><div class="rbar"><div class="rfi" style="width:100%;background:linear-gradient(90deg,#00d4ff,#10b981)"></div></div><div class="rscore" style="color:#00d4ff">1.00</div></div>
+    </div>
+  </div>
+</section>
+
+<div class="div"></div>
+
+<!-- API -->
+<section class="sec">
+  <div class="sec-max">
+    <div class="sh reveal">
+      <span class="sh-eye">API reference</span>
+      <h2 class="sh-t">17 endpoints, fully documented</h2>
+    </div>
+    <div class="api2 reveal">
+      <div class="alist">
+        <a href="/health" class="aep"><span class="mget">GET</span><span class="ap">/health</span><span class="ad">Liveness</span></a>
+        <a href="/tasks" class="aep"><span class="mget">GET</span><span class="ap">/tasks</span><span class="ad">All 8 tasks</span></a>
+        <a href="/stats" class="aep"><span class="mget">GET</span><span class="ap">/stats</span><span class="ad">Aggregate stats</span></a>
+        <a href="/state" class="aep"><span class="mget">GET</span><span class="ap">/state</span><span class="ad">Episode state</span></a>
+        <a href="/history" class="aep"><span class="mget">GET</span><span class="ap">/history</span><span class="ad">Step trajectory</span></a>
+        <a href="/curriculum" class="aep"><span class="mget">GET</span><span class="ap">/curriculum</span><span class="ad">Mastery progress</span></a>
+        <a href="/leaderboard" class="aep"><span class="mget">GET</span><span class="ap">/leaderboard</span><span class="ad">Model rankings</span></a>
+        <a href="/info" class="aep"><span class="mget">GET</span><span class="ap">/info</span><span class="ad">Env metadata</span></a>
+        <a href="/tester" class="aep"><span class="mget">GET</span><span class="ap">/tester</span><span class="ad">Visual tester</span></a>
+        <a href="/docs" class="aep"><span class="mget">GET</span><span class="ap">/docs</span><span class="ad">Swagger UI</span></a>
+        <a href="/docs" class="aep"><span class="mpost">POST</span><span class="ap">/reset</span><span class="ad">Start episode</span></a>
+        <a href="/docs" class="aep"><span class="mpost">POST</span><span class="ap">/step</span><span class="ad">Submit SQL</span></a>
+        <a href="/docs" class="aep"><span class="mpost">POST</span><span class="ap">/evaluate</span><span class="ad">Score SQL</span></a>
+        <a href="/docs" class="aep"><span class="mpost">POST</span><span class="ap">/evaluate/batch</span><span class="ad">Score all 8</span></a>
+        <a href="/docs" class="aep"><span class="mpost">POST</span><span class="ap">/hint</span><span class="ad">Get hint −10%</span></a>
+        <a href="/docs" class="aep"><span class="mpost">POST</span><span class="ap">/curriculum/next</span><span class="ad">Advance level</span></a>
+        <a href="/docs" class="aep"><span class="mpost">POST</span><span class="ap">/leaderboard/submit</span><span class="ad">Submit score</span></a>
+      </div>
+      <div class="codecard">
+        <div class="cctitle">Quick start</div>
+        <div class="ccsub">3 calls to run your first episode and see a reward signal.</div>
+        <div class="codeblock">
+<span style="color:var(--muted)"># 1. Start a new episode</span>
+<span style="color:var(--cyan)">POST</span> /reset
+<span style="color:var(--muted)">Body: {"task_id": "fix_syntax_error"}</span>
+<span style="color:var(--green)">→ broken_query, schema_hint, episode_id</span>
+
+<span style="color:var(--muted)"># 2. Submit your SQL fix</span>
+<span style="color:var(--cyan)">POST</span> /step
+<span style="color:var(--muted)">Body: {"action": {"sql_query": "SELECT ..."}}</span>
+<span style="color:var(--green)">→ reward, reward_breakdown, episode_summary</span>
+<span style="color:var(--green)">→ query_complexity, performance_metrics</span>
+
+<span style="color:var(--muted)"># 3. If not solved, iterate with memory</span>
+<span style="color:var(--cyan)">POST</span> /step
+<span style="color:var(--muted)">→ conversation_history shows past attempts</span>
+<span style="color:var(--green)">→ Reward: 1.0  done: true  solved: true</span>
+        </div>
+        <a href="/tester" class="btn btn-main" style="margin-top:8px;justify-content:center">Try it live →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="fbrand"><b>SQL Debug Environment v3.0</b> · Scaler × Meta PyTorch OpenEnv Hackathon 2026</div>
+  <div class="flinks">
+    <a href="/tester" class="flink">Visual Tester</a>
+    <a href="/docs" class="flink">API Docs</a>
+    <a href="/tasks" class="flink">Tasks</a>
+    <a href="/stats" class="flink">Stats</a>
+    <a href="/leaderboard" class="flink">Leaderboard</a>
+    <a href="/curriculum" class="flink">Curriculum</a>
+    <a href="/health" class="flink">Health</a>
+  </div>
+</footer>
+
+<script>
+const TASKS=[
+  {id:"fix_syntax_error",    name:"Fix Syntax Error",        d:"easy",   steps:5,  thr:0.80, sc:1.000},
+  {id:"fix_logic_error",     name:"Fix Logic / Join Error",  d:"medium", steps:8,  thr:0.70, sc:0.909},
+  {id:"fix_null_handling",   name:"Fix NULL Handling",       d:"medium", steps:6,  thr:0.75, sc:1.000},
+  {id:"fix_subquery_bug",    name:"Fix Subquery Alias Bug",  d:"medium", steps:6,  thr:0.75, sc:1.000},
+  {id:"optimize_query",      name:"Optimize N+1 Query",      d:"hard",   steps:10, thr:0.60, sc:0.929},
+  {id:"fix_window_function", name:"Fix Window Function",     d:"hard",   steps:8,  thr:0.60, sc:1.000},
+  {id:"fix_cte",             name:"Fix CTE Bug",             d:"hard",   steps:8,  thr:0.60, sc:1.000},
+  {id:"multi_step_aggregation","name":"Multi-Dim Report",    d:"expert", steps:10, thr:0.60, sc:1.000},
+];
+const DCLS={easy:"te de",medium:"tm dm",hard:"th dh",expert:"tx dx"};
+const SFCLS={easy:"sf-e",medium:"sf-m",hard:"sf-h",expert:"sf-x"};
+const grid=document.getElementById("taskGrid");
+TASKS.forEach(t=>{
+  const [tc,dc]=DCLS[t.d].split(" ");
+  const sf=SFCLS[t.d];
+  const sb=t.sc>=0.9?"sb-high":t.sc>=0.7?"sb-med":"sb-low";
+  grid.innerHTML+=`
+  <div class="tcard ${tc}">
+    <div class="tcard-top">
+      <div class="tid">${t.id}</div>
+      <span class="dbadge ${dc}">${t.d}</span>
+    </div>
+    <div class="tname">${t.name}</div>
+    <div class="tmeta">
+      <div class="tmi">steps <span>${t.steps}</span></div>
+      <div class="tmi">thresh <span>${t.thr}</span></div>
+      <div class="tmi">score <span class="score-badge ${sb}">${t.sc.toFixed(3)}</span></div>
+    </div>
+    <div class="sbar"><div class="sbfill ${sf}" style="width:${Math.round(t.sc*100)}%"></div></div>
+  </div>`;
+});
+
+// Live stats
+async function loadStats(){
+  try{
+    const r=await fetch("/stats");
+    const d=await r.json();
+    animNum(document.getElementById("ep-count"),d.total_episodes||0);
+    animNum(document.getElementById("step-count"),d.total_steps||0);
+  }catch(e){}
+}
+function animNum(el,target){
+  if(!el||target===0)return;
+  const dur=1400,start=performance.now();
+  (function tick(now){
+    const p=Math.min((now-start)/dur,1);
+    const e=1-Math.pow(1-p,4);
+    el.textContent=Math.round(target*e);
+    if(p<1)requestAnimationFrame(tick);
+  })(start);
+}
+
+// Scroll reveal
+const io=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      e.target.classList.add("vis");
+      if(e.target.closest("#statstrip"))loadStats();
+    }
+  });
+},{threshold:0.08});
+document.querySelectorAll(".reveal").forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

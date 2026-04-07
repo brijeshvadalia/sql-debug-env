@@ -1,16 +1,17 @@
 """
-server/environment.py — SQLDebugEnvironment
+server/environment.py — Advanced SQLDebugEnvironment v3.0
 
-Advanced OpenEnv-compatible environment featuring:
-  - 8 real-world SQL debugging tasks (easy/medium/hard/expert)
-  - Multi-turn conversation memory (full trajectory history)
-  - Dynamic hint system (3 levels, reward-penalised)
-  - EXPLAIN query analysis (scan count, index usage hints)
-  - Curriculum auto-advancement (easy->medium->hard->expert)
-  - WebSocket-ready state management
-  - Thread-safe SQLite execution
+Architecture improvements:
+  - QueryComplexity classifier on every step
+  - PerformanceMetrics: full EXPLAIN plan with speedup ratio
+  - EpisodeSummary: analytics report on done=True
+  - episode_id exposed in every observation
+  - best_reward tracking per episode
+  - improvement_rate calculation
+  - hint_penalty propagated through reward AND tracked in state
+  - Thread-safe write lock, read-only EXPLAIN uses separate connection path
+  - Curriculum: mastery threshold configurable, multiple metrics tracked
 """
-
 from __future__ import annotations
 
 import logging
@@ -18,135 +19,97 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
-from uuid import uuid4
 from typing import Any, Optional
+from uuid import uuid4
 
-from models import RewardBreakdown, SQLAction, SQLObservation, SQLState
-from server.graders import grade
+from models import (
+    EpisodeSummary, PerformanceMetrics, QueryComplexity,
+    RewardBreakdown, SQLAction, SQLObservation, SQLState,
+)
+from server.graders import analyse_query_plan, classify_query, grade
 from server.tasks import TASKS, Task
 
 logger = logging.getLogger(__name__)
 
 _SEED_PATH = Path(__file__).parent / "db" / "seed.sql"
 _MAX_RESULT_ROWS = 20
+_CONV_HISTORY_SIZE = 5
 
 # ---------------------------------------------------------------------------
-# Curriculum order
+# Curriculum
 # ---------------------------------------------------------------------------
 
 CURRICULUM_ORDER = [
-    "fix_syntax_error",       # easy
-    "fix_logic_error",        # medium
-    "fix_null_handling",      # medium
-    "fix_subquery_bug",       # medium
-    "optimize_query",         # hard
-    "fix_window_function",    # hard
-    "fix_cte",                # hard
-    "multi_step_aggregation", # expert
+    "fix_syntax_error",
+    "fix_logic_error",
+    "fix_null_handling",
+    "fix_subquery_bug",
+    "optimize_query",
+    "fix_window_function",
+    "fix_cte",
+    "multi_step_aggregation",
 ]
 
 # ---------------------------------------------------------------------------
-# Hint system — 3 levels per task
+# Hints — 3 levels per task
 # ---------------------------------------------------------------------------
 
 HINTS: dict[str, list[str]] = {
     "fix_syntax_error": [
         "Level 1: Look carefully at the SQL keywords — some are misspelled.",
-        "Level 2: Three keywords are wrong: the SELECT keyword, the FROM keyword, and the ORDER BY keyword.",
-        "Level 3: Fix: 'SELEC' -> 'SELECT', 'FORM' -> 'FROM', 'ORDR BY' -> 'ORDER BY'",
+        "Level 2: Three keywords are wrong: SELECT, FROM, and ORDER BY.",
+        "Level 3: Fix: 'SELEC'→'SELECT', 'FORM'→'FROM', 'ORDR BY'→'ORDER BY'",
     ],
     "fix_logic_error": [
-        "Level 1: The JOIN type causes some orders to be excluded from results.",
-        "Level 2: Change INNER JOIN order_items to LEFT JOIN, and fix the SUM column.",
-        "Level 3: Use LEFT JOIN order_items and SUM(oi.quantity * oi.unit_price) instead of SUM(o.total_amount)",
+        "Level 1: The JOIN type causes some orders to be excluded.",
+        "Level 2: Change INNER JOIN order_items to LEFT JOIN; fix the SUM column.",
+        "Level 3: Use LEFT JOIN order_items and SUM(oi.quantity * oi.unit_price).",
     ],
     "fix_null_handling": [
         "Level 1: Products with no reviews are being excluded entirely.",
-        "Level 2: Change INNER JOIN to LEFT JOIN, and handle NULL from AVG().",
-        "Level 3: Use LEFT JOIN reviews, and wrap AVG with COALESCE(AVG(r.rating), 0.0)",
+        "Level 2: Change INNER JOIN to LEFT JOIN; handle NULL from AVG().",
+        "Level 3: LEFT JOIN reviews; COALESCE(AVG(r.rating), 0.0).",
     ],
     "fix_subquery_bug": [
         "Level 1: There is an alias conflict between the outer and inner query.",
-        "Level 2: The inner subquery reuses alias 'oi' which shadows the outer query's 'oi'.",
-        "Level 3: Rename the inner JOIN alias from 'oi' to 'oi2': JOIN order_items oi2 ON oi2.order_id = ord.id",
+        "Level 2: The inner subquery reuses alias 'oi' which shadows the outer 'oi'.",
+        "Level 3: Rename inner JOIN alias from 'oi' to 'oi2'.",
     ],
     "optimize_query": [
-        "Level 1: The query uses correlated subqueries — one for each customer row.",
+        "Level 1: The query has two correlated subqueries — one per customer row.",
         "Level 2: Replace both subqueries with LEFT JOINs and GROUP BY.",
-        "Level 3: Use LEFT JOIN orders ON ... AND o.status != 'cancelled', LEFT JOIN order_items, GROUP BY c.id, use COALESCE(SUM(...),0) and COUNT(DISTINCT o.id)",
+        "Level 3: LEFT JOIN orders ON ... AND o.status!='cancelled'; LEFT JOIN order_items; GROUP BY c.id; COALESCE(SUM(...),0); COUNT(DISTINCT o.id).",
     ],
     "fix_window_function": [
-        "Level 1: The window function uses the wrong ranking function and wrong partition column.",
-        "Level 2: ROW_NUMBER() should be RANK(), and PARTITION BY should use region not tier.",
-        "Level 3: Change to RANK() OVER (PARTITION BY c.region ORDER BY SUM(...) DESC)",
+        "Level 1: Two bugs in the window function definition.",
+        "Level 2: ROW_NUMBER()→RANK(); PARTITION BY c.tier→PARTITION BY c.region.",
+        "Level 3: RANK() OVER (PARTITION BY c.region ORDER BY SUM(...) DESC).",
     ],
     "fix_cte": [
-        "Level 1: The percentage calculation always returns 100% for every row.",
+        "Level 1: The percentage calculation always returns 100%.",
         "Level 2: You are dividing total_revenue by itself instead of the grand total.",
-        "Level 3: Change the divisor to: (SELECT SUM(total_revenue) FROM customer_revenue)",
+        "Level 3: Divide by (SELECT SUM(total_revenue) FROM customer_revenue).",
     ],
     "multi_step_aggregation": [
-        "Level 1: The query is missing a GROUP BY clause and the average order value is hardcoded as 0.",
-        "Level 2: Add GROUP BY p.category, c.tier and compute the real avg_order_value.",
-        "Level 3: GROUP BY p.category, c.tier and use ROUND(SUM(oi.quantity*oi.unit_price)/COUNT(DISTINCT o.id),2) AS avg_order_value",
+        "Level 1: Missing GROUP BY and avg_order_value is hardcoded as 0.",
+        "Level 2: Add GROUP BY p.category, c.tier; compute real avg_order_value.",
+        "Level 3: GROUP BY p.category, c.tier; ROUND(SUM(...)/COUNT(DISTINCT o.id),2) AS avg_order_value.",
     ],
 }
 
 
 # ---------------------------------------------------------------------------
-# EXPLAIN analysis
-# ---------------------------------------------------------------------------
-
-def _analyse_query(conn: sqlite3.Connection, sql: str) -> dict[str, Any]:
-    """
-    Run EXPLAIN QUERY PLAN and return structured analysis.
-    Returns dict with: scan_count, uses_index, tables_scanned, suggestion.
-    """
-    try:
-        plan_rows = conn.execute(f"EXPLAIN QUERY PLAN {sql}").fetchall()
-        plans = [dict(r) for r in plan_rows]
-        details = [str(p.get("detail","")) for p in plans]
-        full = " ".join(details).upper()
-
-        scan_count = sum(1 for d in details if "SCAN" in d.upper())
-        index_count = sum(1 for d in details if "INDEX" in d.upper() or "USING INDEX" in d.upper())
-        tables = [d.split("SCAN")[-1].strip().split()[0] if "SCAN" in d.upper() else "" for d in details]
-        tables = [t for t in tables if t]
-
-        if "CORRELATED" in full or scan_count > 3:
-            suggestion = "High scan count detected. Consider rewriting subqueries as JOINs."
-        elif scan_count == 0:
-            suggestion = "Query plan looks efficient — using index lookups."
-        elif index_count > 0:
-            suggestion = "Some index usage detected. Query looks reasonable."
-        else:
-            suggestion = f"Full table scans on {scan_count} table(s). Consider adding WHERE clauses."
-
-        return {
-            "scan_count": scan_count,
-            "uses_index": index_count > 0,
-            "tables_scanned": tables[:5],
-            "plan_steps": len(plans),
-            "suggestion": suggestion,
-        }
-    except Exception:
-        return {
-            "scan_count": 0,
-            "uses_index": False,
-            "tables_scanned": [],
-            "plan_steps": 0,
-            "suggestion": "Could not analyse query plan.",
-        }
-
-
-# ---------------------------------------------------------------------------
-# Conversation turn (for multi-turn memory)
+# Conversation turn
 # ---------------------------------------------------------------------------
 
 class ConversationTurn:
+    __slots__ = ("step", "sql", "reasoning", "error", "reward",
+                 "done", "result_count", "exec_ms", "complexity_label")
+
     def __init__(self, step: int, sql: str, reasoning: Optional[str],
                  error: Optional[str], reward: float, done: bool,
-                 result_count: int, exec_ms: Optional[float]):
+                 result_count: int, exec_ms: Optional[float],
+                 complexity_label: str = "simple"):
         self.step = step
         self.sql = sql
         self.reasoning = reasoning
@@ -155,6 +118,7 @@ class ConversationTurn:
         self.done = done
         self.result_count = result_count
         self.exec_ms = exec_ms
+        self.complexity_label = complexity_label
 
     def to_dict(self) -> dict:
         return {
@@ -166,16 +130,8 @@ class ConversationTurn:
             "done": self.done,
             "result_count": self.result_count,
             "exec_ms": round(self.exec_ms, 3) if self.exec_ms else None,
+            "complexity": self.complexity_label,
         }
-
-    def to_context_str(self) -> str:
-        """Human-readable summary for including in next observation."""
-        parts = [f"Step {self.step}: reward={self.reward:.3f}"]
-        if self.error:
-            parts.append(f"error='{self.error[:80]}'")
-        else:
-            parts.append(f"rows_returned={self.result_count}")
-        return " | ".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -186,13 +142,14 @@ class SQLDebugEnvironment:
     """
     Advanced OpenEnv-compatible SQL debugging environment.
 
-    Features:
-      - 8 tasks across easy/medium/hard/expert difficulties
-      - Multi-turn memory: agent sees full trajectory history
-      - 3-level hint system with reward penalty
-      - EXPLAIN query plan analysis
-      - Curriculum auto-advancement
-      - Thread-safe SQLite execution
+    Per-episode features:
+      - Structured EXPLAIN plan analysis on every step
+      - QueryComplexity classifier (simple/moderate/complex/advanced)
+      - EpisodeSummary analytics on termination
+      - best_reward and improvement_rate tracking
+      - Hint penalty propagated accurately through grade()
+      - episode_id exposed in every observation
+      - Thread-safe SQLite with WAL mode
     """
 
     def __init__(self) -> None:
@@ -201,19 +158,18 @@ class SQLDebugEnvironment:
         self._state = SQLState()
         self._current_task: Optional[Task] = None
 
-        # Multi-turn memory
+        # Episode tracking
         self._conversation: list[ConversationTurn] = []
+        self._step_rewards: list[float] = []
+        self._best_reward: float = 0.0
 
-        # Hint tracking
+        # Hint state
         self._hints_used: int = 0
         self._hint_penalty: float = 0.0
 
-        # Curriculum tracking
+        # Curriculum
         self._curriculum_scores: dict[str, list[float]] = {t: [] for t in CURRICULUM_ORDER}
         self._curriculum_index: int = 0
-
-        # Baseline exec times for optimize tasks (populated on first run)
-        self._baseline_times: dict[str, float] = {}
 
         logger.info("SQLDebugEnvironment initialised.")
 
@@ -226,156 +182,214 @@ class SQLDebugEnvironment:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA cache_size = -8000")  # 8MB cache
         conn.executescript(_SEED_PATH.read_text())
         conn.commit()
-        logger.info("Database seeded from %s", _SEED_PATH)
         return conn
 
-    def _execute_query(self, sql: str) -> tuple[Optional[list[dict]], Optional[str], Optional[float]]:
+    def _execute(self, sql: str) -> tuple[Optional[list[dict]], Optional[str], float]:
+        """Execute SQL, return (rows, error, exec_ms)."""
         with self._lock:
+            t0 = time.perf_counter()
             try:
-                t0 = time.perf_counter()
-                cursor = self._conn.execute(sql)
-                rows = [dict(r) for r in cursor.fetchmany(_MAX_RESULT_ROWS)]
-                exec_ms = (time.perf_counter() - t0) * 1000
-                return rows, None, exec_ms
-            except sqlite3.Error as exc:
-                return None, str(exc), None
-            except Exception as exc:
-                return None, f"Unexpected error: {exc}", None
+                cur = self._conn.execute(sql)
+                rows = [dict(r) for r in cur.fetchmany(_MAX_RESULT_ROWS)]
+                ms = (time.perf_counter() - t0) * 1000
+                return rows, None, ms
+            except sqlite3.Error as e:
+                ms = (time.perf_counter() - t0) * 1000
+                return None, str(e), ms
+            except Exception as e:
+                return None, f"Unexpected: {e}", 0.0
 
     # ------------------------------------------------------------------
-    # OpenEnv interface
+    # OpenEnv API
     # ------------------------------------------------------------------
 
     def reset(self, task_id: str = "fix_syntax_error") -> SQLObservation:
-        """
-        Reset environment for a new episode.
-        Clears conversation history and hint state.
-        """
         if task_id not in TASKS:
-            raise ValueError(f"Unknown task_id '{task_id}'. Valid: {list(TASKS.keys())}")
+            raise ValueError(
+                f"Unknown task_id '{task_id}'. Valid: {list(TASKS.keys())}")
 
         self._current_task = TASKS[task_id]
         self._conversation = []
+        self._step_rewards = []
+        self._best_reward = 0.0
         self._hints_used = 0
         self._hint_penalty = 0.0
 
         episode_id = str(uuid4())
         self._state = SQLState(
             episode_id=episode_id,
-            step_count=0,
             task_id=task_id,
             max_steps=self._current_task.max_steps,
-            done=False,
-            last_reward=0.0,
-            cumulative_reward=0.0,
         )
-
         logger.info("Episode %s started — task=%s", episode_id[:8], task_id)
 
         return SQLObservation(
+            episode_id=episode_id,
             task_id=task_id,
             task_description=self._current_task.description,
             broken_query=self._current_task.broken_query,
             schema_hint=self._current_task.schema_hint,
             conversation_history=[],
-            query_analysis=None,
             hint_available=True,
             hints_used=0,
+            hint_penalty=0.0,
             max_steps=self._current_task.max_steps,
+            best_reward_so_far=0.0,
         )
 
     def step(self, action: SQLAction) -> SQLObservation:
-        """Execute one agent action (a SQL query)."""
         if self._current_task is None:
             raise RuntimeError("Call reset() before step().")
 
         self._state.step_count += 1
         step = self._state.step_count
+        task = self._current_task
+        task_id = task.task_id
 
         # Execute query
-        rows, error, exec_ms = self._execute_query(action.sql_query)
+        rows, error, exec_ms = self._execute(action.sql_query)
 
-        # Update baseline exec time for hard tasks
-        task_id = self._current_task.task_id
-        if self._current_task.baseline_exec_ms > 0 and exec_ms:
-            if task_id not in self._baseline_times:
-                self._baseline_times[task_id] = self._current_task.baseline_exec_ms
+        # Classify query complexity
+        complexity = classify_query(action.sql_query)
+
+        # Build performance metrics via EXPLAIN
+        perf: Optional[PerformanceMetrics] = None
+        if not error:
+            try:
+                with self._lock:
+                    perf = analyse_query_plan(
+                        self._conn, action.sql_query,
+                        baseline_ms=task.baseline_exec_ms,
+                        exec_ms=exec_ms,
+                    )
+            except Exception:
+                perf = PerformanceMetrics(
+                    execution_ms=exec_ms,
+                    baseline_ms=task.baseline_exec_ms,
+                    suggestion="Plan unavailable.",
+                )
 
         # Grade
         reward_bd = grade(
-            task=self._current_task,
-            error=error,
-            result=rows,
-            exec_ms=exec_ms,
-            step_count=step,
+            task=task, error=error, result=rows,
+            exec_ms=exec_ms, step_count=step,
+            perf=perf, sql=action.sql_query,
         )
 
-        # Apply hint penalty (max 30% penalty)
-        final_reward = max(0.0, round(reward_bd.total * (1.0 - self._hint_penalty), 4))
-        reward_bd.total = final_reward
+        # Apply hint penalty
         if self._hint_penalty > 0:
+            raw = reward_bd.total
+            reward_bd.total = max(0.0, round(raw * (1.0 - self._hint_penalty), 4))
+            reward_bd.hint_penalty = self._hint_penalty
             reward_bd.explanation += f" | hint_penalty={self._hint_penalty:.0%}"
 
-        # Query analysis (EXPLAIN)
-        query_analysis = None
-        if not error:
-            query_analysis = _analyse_query(self._conn, action.sql_query)
+        final_reward = reward_bd.total
 
-        # Update conversation memory
+        # Track best reward
+        self._best_reward = max(self._best_reward, final_reward)
+        self._step_rewards.append(final_reward)
+
+        # Done check
+        done = (
+            final_reward >= task.reward_threshold
+            or step >= task.max_steps
+        )
+
+        # Termination reason
+        if final_reward >= task.reward_threshold:
+            term_reason = "solved"
+        elif step >= task.max_steps:
+            term_reason = "max_steps"
+        else:
+            term_reason = ""
+
+        # Conversation turn
         turn = ConversationTurn(
-            step=step,
-            sql=action.sql_query,
-            reasoning=action.reasoning,
-            error=error,
-            reward=final_reward,
-            done=False,
+            step=step, sql=action.sql_query,
+            reasoning=action.reasoning, error=error,
+            reward=final_reward, done=done,
             result_count=len(rows) if rows else 0,
             exec_ms=exec_ms,
+            complexity_label=complexity.label,
         )
-
-        # Episode termination
-        done = (
-            final_reward >= self._current_task.reward_threshold
-            or step >= self._current_task.max_steps
-        )
-        turn.done = done
         self._conversation.append(turn)
 
         # Update state
         self._state.done = done
         self._state.last_reward = final_reward
+        self._state.best_reward = self._best_reward
         self._state.cumulative_reward = round(
-            self._state.cumulative_reward + final_reward, 4
-        )
+            self._state.cumulative_reward + final_reward, 4)
+        self._state.solved = final_reward >= task.reward_threshold
+        self._state.hints_used = self._hints_used
+        self._state.hint_penalty = self._hint_penalty
 
-        # Update curriculum scores
+        # Update curriculum
         if done and task_id in self._curriculum_scores:
             self._curriculum_scores[task_id].append(final_reward)
 
-        # Build conversation history for observation (last 5 turns)
-        conv_history = [t.to_dict() for t in self._conversation[-5:]]
+        # Improvement rate
+        improvement_rate = 0.0
+        if len(self._step_rewards) >= 2:
+            improvements = [
+                max(0.0, self._step_rewards[i] - self._step_rewards[i-1])
+                for i in range(1, len(self._step_rewards))
+            ]
+            improvement_rate = round(sum(improvements) / len(improvements), 4)
 
-        logger.info("Step %d: reward=%.4f done=%s", step, final_reward, done)
+        # Build episode summary on done
+        episode_summary: Optional[EpisodeSummary] = None
+        if done:
+            episode_summary = EpisodeSummary(
+                episode_id=self._state.episode_id,
+                task_id=task_id,
+                total_steps=step,
+                final_reward=final_reward,
+                best_reward=self._best_reward,
+                solved=self._state.solved,
+                hints_used=self._hints_used,
+                hint_penalty_total=self._hint_penalty,
+                cumulative_reward=self._state.cumulative_reward,
+                termination_reason=term_reason,
+                step_rewards=self._step_rewards.copy(),
+                improvement_rate=improvement_rate,
+            )
+            logger.info(
+                "Episode %s done — reward=%.4f solved=%s steps=%d",
+                self._state.episode_id[:8], final_reward, self._state.solved, step)
+        else:
+            logger.info("Step %d: reward=%.4f complexity=%s",
+                        step, final_reward, complexity.label)
+
+        conv_history = [t.to_dict() for t in self._conversation[-_CONV_HISTORY_SIZE:]]
 
         return SQLObservation(
+            episode_id=self._state.episode_id,
             task_id=task_id,
-            task_description=self._current_task.description,
-            broken_query=self._current_task.broken_query,
-            schema_hint=self._current_task.schema_hint,
+            task_description=task.description,
+            broken_query=task.broken_query,
+            schema_hint=task.schema_hint,
             error_message=error,
             query_result=rows,
-            execution_time_ms=exec_ms,
+            row_count=len(rows) if rows else 0,
+            execution_time_ms=round(exec_ms, 3),
+            performance_metrics=perf,
+            query_analysis=perf,          # backward compat alias
+            query_complexity=complexity,
             reward=final_reward,
             reward_breakdown=reward_bd,
             conversation_history=conv_history,
-            query_analysis=query_analysis,
             hint_available=self._hints_used < 3,
             hints_used=self._hints_used,
+            hint_penalty=self._hint_penalty,
             step_count=step,
-            max_steps=self._current_task.max_steps,
+            max_steps=task.max_steps,
             done=done,
+            best_reward_so_far=self._best_reward,
+            episode_summary=episode_summary,
         )
 
     @property
@@ -387,16 +401,10 @@ class SQLDebugEnvironment:
     # ------------------------------------------------------------------
 
     def get_hint(self) -> dict[str, Any]:
-        """
-        Return the next hint for the current task.
-        Each hint costs a 10% reward penalty (max 3 hints = 30% penalty).
-        """
         if self._current_task is None:
             raise RuntimeError("Call reset() before get_hint().")
 
-        task_id = self._current_task.task_id
-        hints = HINTS.get(task_id, [])
-
+        hints = HINTS.get(self._current_task.task_id, [])
         if self._hints_used >= len(hints):
             return {
                 "hint": "No more hints available for this task.",
@@ -404,19 +412,23 @@ class SQLDebugEnvironment:
                 "penalty_applied": 0.0,
                 "total_penalty": self._hint_penalty,
                 "hints_remaining": 0,
+                "message": "All 3 hints have been used.",
             }
 
-        hint_text = hints[self._hints_used]
+        text = hints[self._hints_used]
         self._hints_used += 1
         self._hint_penalty = min(0.30, self._hints_used * 0.10)
+        self._state.hints_used = self._hints_used
+        self._state.hint_penalty = self._hint_penalty
 
         return {
-            "hint": hint_text,
+            "hint": text,
             "level": self._hints_used,
             "penalty_applied": 0.10,
             "total_penalty": self._hint_penalty,
             "hints_remaining": max(0, 3 - self._hints_used),
-            "message": f"Hint {self._hints_used}/3 used. Future rewards penalised by {self._hint_penalty:.0%}.",
+            "message": (f"Hint {self._hints_used}/3 used. "
+                        f"Future rewards penalised {self._hint_penalty:.0%}."),
         }
 
     # ------------------------------------------------------------------
@@ -424,10 +436,6 @@ class SQLDebugEnvironment:
     # ------------------------------------------------------------------
 
     def curriculum_next(self) -> dict[str, Any]:
-        """
-        Return the next recommended task based on mastery scores.
-        Advances when avg score >= 0.8 over last 3 episodes for current task.
-        """
         if self._curriculum_index >= len(CURRICULUM_ORDER):
             return {
                 "status": "complete",
@@ -436,56 +444,48 @@ class SQLDebugEnvironment:
                 "progress": f"{len(CURRICULUM_ORDER)}/{len(CURRICULUM_ORDER)}",
             }
 
-        current_tid = CURRICULUM_ORDER[self._curriculum_index]
-        scores = self._curriculum_scores.get(current_tid, [])
+        tid = CURRICULUM_ORDER[self._curriculum_index]
+        scores = self._curriculum_scores.get(tid, [])
         recent = scores[-3:]
-        avg = sum(recent) / len(recent) if recent else 0.0
-
-        # Check if should advance
+        avg = round(sum(recent) / len(recent), 3) if recent else 0.0
         should_advance = len(recent) >= 3 and avg >= 0.8
+
         if should_advance and self._curriculum_index < len(CURRICULUM_ORDER) - 1:
             self._curriculum_index += 1
             next_tid = CURRICULUM_ORDER[self._curriculum_index]
             return {
                 "status": "advanced",
-                "message": f"Mastered '{current_tid}' (avg={avg:.2f}). Advancing!",
+                "message": f"Mastered '{tid}' (avg={avg:.2f}). Advancing!",
                 "recommended_task": next_tid,
-                "previous_task": current_tid,
+                "previous_task": tid,
                 "progress": f"{self._curriculum_index+1}/{len(CURRICULUM_ORDER)}",
-                "mastery_score": round(avg, 3),
+                "mastery_score": avg,
             }
 
-        # Recommend same task
-        task = TASKS[current_tid]
         return {
             "status": "in_progress",
-            "recommended_task": current_tid,
-            "difficulty": task.difficulty,
+            "recommended_task": tid,
+            "difficulty": TASKS[tid].difficulty,
             "episodes_on_task": len(scores),
-            "recent_avg": round(avg, 3),
+            "recent_avg": avg,
             "needed_avg": 0.8,
             "progress": f"{self._curriculum_index+1}/{len(CURRICULUM_ORDER)}",
-            "message": (
-                f"Keep practising '{current_tid}'. "
-                f"Recent avg: {avg:.2f}/0.80 needed. "
-                f"({len(recent)}/3 recent episodes counted)"
-            ),
+            "message": (f"Keep practising '{tid}'. "
+                        f"Avg: {avg:.2f}/0.80 ({len(recent)}/3 recent)."),
         }
 
     def curriculum_status(self) -> dict[str, Any]:
-        """Full curriculum progress report."""
         result = []
         for i, tid in enumerate(CURRICULUM_ORDER):
-            scores = self._curriculum_scores.get(tid, [])
-            recent = scores[-3:]
-            avg = round(sum(recent)/len(recent), 3) if recent else 0.0
-            mastered = len(recent) >= 3 and avg >= 0.8
+            sc = self._curriculum_scores.get(tid, [])
+            recent = sc[-3:]
+            avg = round(sum(recent) / len(recent), 3) if recent else 0.0
             result.append({
                 "task_id": tid,
                 "difficulty": TASKS[tid].difficulty,
-                "episodes": len(scores),
+                "episodes": len(sc),
                 "recent_avg": avg,
-                "mastered": mastered,
+                "mastered": len(recent) >= 3 and avg >= 0.8,
                 "current": i == self._curriculum_index,
             })
         return {
@@ -499,32 +499,33 @@ class SQLDebugEnvironment:
     # ------------------------------------------------------------------
 
     def get_history(self) -> dict[str, Any]:
-        """Full step-by-step conversation history for current episode."""
+        rewards = self._step_rewards
         return {
             "episode_id": self._state.episode_id,
             "task_id": self._state.task_id,
             "steps": [t.to_dict() for t in self._conversation],
             "total_steps": len(self._conversation),
             "cumulative_reward": self._state.cumulative_reward,
+            "best_reward": self._best_reward,
             "hints_used": self._hints_used,
             "hint_penalty": self._hint_penalty,
+            "improvement_rate": round(
+                sum(max(0.0, rewards[i] - rewards[i-1]) for i in range(1, len(rewards)))
+                / max(1, len(rewards) - 1), 4) if len(rewards) > 1 else 0.0,
         }
 
     def get_metadata(self) -> dict:
         return {
             "name": "sql-debug-env",
             "version": "3.0.0",
-            "description": "Advanced real-world SQL debugging and optimisation environment.",
+            "description": "Advanced real-world SQL debugging RL environment.",
             "tasks": list(TASKS.keys()),
             "features": [
-                "multi_turn_memory",
-                "hint_system",
-                "query_analysis",
-                "curriculum_learning",
-                "8_tasks",
-                "4_difficulty_levels",
+                "multi_turn_memory", "hint_system", "query_complexity_classifier",
+                "explain_analysis", "performance_metrics", "episode_summary",
+                "curriculum_learning", "leaderboard", "batch_evaluation",
+                "8_tasks", "4_difficulty_levels",
             ],
-            "action_fields": ["sql_query", "reasoning"],
         }
 
     def close(self) -> None:

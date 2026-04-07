@@ -6,198 +6,182 @@
 <title>SQL Debug Environment v3.0 — Visual Tester</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
-a{color:#60a5fa;text-decoration:none}a:hover{text-decoration:underline}
-
-/* Topbar */
-.topbar{background:#1e293b;border-bottom:1px solid #334155;padding:11px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
-.topbar-title{font-size:14px;font-weight:600;color:#f1f5f9;display:flex;align-items:center;gap:8px}
-.live{width:8px;height:8px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite;flex-shrink:0}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.topbar-links{display:flex;gap:14px;font-size:12px;flex-wrap:wrap}
-
-/* Tabs */
-.tabs{display:flex;gap:2px;background:#1e293b;padding:8px 20px;border-bottom:1px solid #334155;overflow-x:auto}
-.tab{padding:7px 16px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:transparent;color:#64748b;white-space:nowrap;transition:all .15s}
-.tab:hover{color:#94a3b8;background:#273548}
-.tab.active{background:#1e3a5f;color:#60a5fa;border:1px solid #1e40af}
-
-/* Container */
-.container{max-width:1200px;margin:0 auto;padding:20px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#0a0f1e;color:#e2e8f0;min-height:100vh}
+a{color:#38bdf8;text-decoration:none}a:hover{text-decoration:underline}
+.topbar{background:#0f172a;border-bottom:1px solid #1e2d45;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.topbar-title{font-size:13px;font-weight:700;color:#f1f5f9;display:flex;align-items:center;gap:8px;font-family:monospace}
+.live{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e;animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.topbar-links{display:flex;gap:12px;font-size:12px;flex-wrap:wrap}
+.tabs{display:flex;gap:2px;background:#0f172a;padding:8px 20px;border-bottom:1px solid #1e2d45;overflow-x:auto}
+.tab{padding:6px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:transparent;color:#64748b;white-space:nowrap;transition:all .15s}
+.tab:hover{color:#94a3b8;background:#1a2840}
+.tab.active{background:#1e3a5f;color:#38bdf8;border:1px solid #1e40af}
+.container{max-width:1200px;margin:0 auto;padding:18px}
 .pane{display:none}.pane.active{display:block}
 
 /* Task grid */
-.task-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+.task-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
 @media(max-width:680px){.task-grid{grid-template-columns:repeat(2,1fr)}}
-.task-btn{padding:10px 6px;border:1px solid #334155;border-radius:9px;background:#1e293b;cursor:pointer;text-align:center;transition:all .15s;user-select:none}
-.task-btn:hover{border-color:#475569;background:#273548}
+.task-btn{padding:10px 6px;border:1px solid #1e2d45;border-radius:9px;background:#0f172a;cursor:pointer;text-align:center;transition:all .15s;user-select:none}
+.task-btn:hover{border-color:#334155;background:#162030}
 .task-btn.active{border-color:#3b82f6;background:#1e3a5f}
-.task-name{font-size:11px;font-weight:500;color:#f1f5f9;margin-bottom:5px;line-height:1.3}
-.diff-badge{display:inline-block;font-size:10px;padding:2px 6px;border-radius:10px;font-weight:600}
-.easy{background:#166534;color:#86efac}.medium{background:#92400e;color:#fde68a}
-.hard{background:#7f1d1d;color:#fca5a5}.expert{background:#4c1d95;color:#c4b5fd}
+.task-name{font-size:11px;font-weight:600;color:#f1f5f9;margin-bottom:5px;line-height:1.3}
+.diff-badge{display:inline-block;font-size:9px;padding:2px 6px;border-radius:10px;font-weight:700}
+.easy{background:#14532d;color:#86efac}.medium{background:#78350f;color:#fde68a}
+.hard{background:#450a0a;color:#fca5a5}.expert{background:#3b0764;color:#e9d5ff}
 
 /* URL bar */
-.url-bar{background:#1e293b;border:1px solid #334155;border-radius:7px;padding:7px 12px;font-size:11px;color:#94a3b8;font-family:monospace;margin-bottom:12px;display:flex;align-items:center;gap:7px;word-break:break-all}
-.dot{width:7px;height:7px;border-radius:50%;background:#475569;flex-shrink:0}
+.url-bar{background:#0f172a;border:1px solid #1e2d45;border-radius:7px;padding:7px 12px;font-size:11px;color:#64748b;font-family:monospace;margin-bottom:12px;display:flex;align-items:center;gap:7px;word-break:break-all}
+.dot{width:7px;height:7px;border-radius:50%;background:#334155;flex-shrink:0}
 .dot.g{background:#22c55e}.dot.o{background:#f59e0b}.dot.r{background:#ef4444}
 
 /* Panels */
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px}
 @media(max-width:680px){.two-col{grid-template-columns:1fr}}
-.box{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:14px}
-.lbl{font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
-
-/* SQL display */
-.sql-show{background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:10px;font-family:monospace;font-size:11.5px;color:#a5f3fc;white-space:pre-wrap;word-break:break-all;max-height:140px;overflow-y:auto;line-height:1.65}
-.schema-show{background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:8px;font-family:monospace;font-size:10.5px;color:#94a3b8;white-space:pre-wrap;max-height:75px;overflow-y:auto;line-height:1.55;margin-top:8px}
-
-/* SQL input */
-.sql-edit{font-family:monospace;font-size:12px;width:100%;border:1px solid #334155;border-radius:6px;padding:10px;background:#0f172a;color:#e2e8f0;resize:vertical;min-height:120px;line-height:1.65;outline:none}
+.box{background:#0f172a;border:1px solid #1e2d45;border-radius:10px;padding:14px}
+.lbl{font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px}
+.sql-show{background:#060b14;border:1px solid #1e2d45;border-radius:6px;padding:10px;font-family:monospace;font-size:11.5px;color:#7dd3fc;white-space:pre-wrap;word-break:break-all;max-height:140px;overflow-y:auto;line-height:1.6}
+.schema-show{background:#060b14;border:1px solid #1e2d45;border-radius:6px;padding:8px;font-family:monospace;font-size:10.5px;color:#64748b;white-space:pre-wrap;max-height:70px;overflow-y:auto;line-height:1.5;margin-top:8px}
+.sql-edit{font-family:monospace;font-size:12px;width:100%;border:1px solid #1e2d45;border-radius:6px;padding:10px;background:#060b14;color:#e2e8f0;resize:vertical;min-height:120px;line-height:1.65;outline:none}
 .sql-edit:focus{border-color:#3b82f6}
-
-/* Buttons */
 .btn-row{display:flex;gap:6px;margin:8px 0 5px;flex-wrap:wrap}
-.btn{padding:7px 12px;border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid;transition:all .15s}
+.btn{padding:7px 12px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid;transition:all .15s}
 .btn:active{transform:scale(.98)}
-.btn-go{background:#1e3a5f;border-color:#3b82f6;color:#93c5fd;flex:1;min-width:120px}
+.btn-go{background:#1e3a5f;border-color:#3b82f6;color:#93c5fd;flex:1;min-width:110px}
 .btn-go:hover{background:#1d4ed8;color:#fff}
 .btn-ans{background:#1c1917;border-color:#78350f;color:#fbbf24;font-size:11px}
 .btn-ans:hover{background:#78350f;color:#fff}
 .btn-hint{background:#1e1b4b;border-color:#4338ca;color:#a5b4fc;font-size:11px}
 .btn-hint:hover{background:#4338ca;color:#fff}
-.btn-reset{background:#1e293b;border-color:#334155;color:#94a3b8;font-size:11px}
-.btn-reset:hover{background:#334155}
-.step-info{font-size:11px;color:#64748b;margin-top:4px}
+.btn-reset{background:#0f172a;border-color:#1e2d45;color:#64748b;font-size:11px}
+.btn-reset:hover{background:#1e2d45}
+.step-info{font-size:11px;color:#475569;margin-top:4px}
 .step-info b{color:#94a3b8}
 
+/* Hint counter */
+.hint-row{display:flex;align-items:center;gap:4px;margin-top:6px}
+.hint-dot{width:10px;height:10px;border-radius:50%;border:1px solid #334155;background:#0f172a;transition:all .2s}
+.hint-dot.used{background:#6366f1;border-color:#6366f1;box-shadow:0 0 4px #6366f1}
+.penalty-lbl{font-size:10px;color:#a78bfa;margin-left:4px;font-family:monospace}
+
 /* Metrics */
-.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
-@media(max-width:500px){.metrics{grid-template-columns:repeat(2,1fr)}}
-.metric{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px;text-align:center}
-.metric-v{font-size:20px;font-weight:700;color:#f1f5f9}
-.metric-l{font-size:10px;color:#64748b;margin-top:2px}
+.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
+@media(max-width:600px){.metrics{grid-template-columns:repeat(3,1fr)}}
+.metric{background:#0f172a;border:1px solid #1e2d45;border-radius:8px;padding:10px;text-align:center}
+.metric-v{font-size:17px;font-weight:700;color:#f1f5f9;line-height:1}
+.metric-l{font-size:9px;color:#475569;margin-top:3px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
 
 /* Bars */
 .bar-wrap{margin-bottom:8px}
-.bar-row{display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-bottom:3px}
-.bar-bg{background:#1e293b;border-radius:3px;height:8px;overflow:hidden}
-.bar-fill{height:8px;border-radius:3px;transition:width .4s ease,background .3s}
+.bar-row{display:flex;justify-content:space-between;font-size:11px;color:#475569;margin-bottom:3px}
+.bar-bg{background:#0f172a;border-radius:3px;height:7px;overflow:hidden}
+.bar-fill{height:7px;border-radius:3px;transition:width .4s ease}
 
-/* Status messages */
+/* Status */
 .smsg{margin-bottom:8px;font-size:12px;line-height:1.5}
-.ok{background:#14532d;border-left:3px solid #22c55e;padding:8px 12px;border-radius:0 6px 6px 0;color:#86efac}
-.err{background:#450a0a;border-left:3px solid #ef4444;padding:8px 12px;border-radius:0 6px 6px 0;color:#fca5a5}
-.info{background:#172554;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;color:#93c5fd}
-.warn{background:#431407;border-left:3px solid #f59e0b;padding:8px 12px;border-radius:0 6px 6px 0;color:#fde68a}
-.hint-msg{background:#1e1b4b;border-left:3px solid #6366f1;padding:8px 12px;border-radius:0 6px 6px 0;color:#a5b4fc;margin-bottom:8px;font-size:12px}
+.ok{background:#052e16;border-left:3px solid #22c55e;padding:8px 12px;border-radius:0 6px 6px 0;color:#86efac}
+.err{background:#2d0404;border-left:3px solid #ef4444;padding:8px 12px;border-radius:0 6px 6px 0;color:#fca5a5}
+.info{background:#0c1a3a;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 6px 6px 0;color:#93c5fd}
+.warn{background:#231007;border-left:3px solid #f59e0b;padding:8px 12px;border-radius:0 6px 6px 0;color:#fde68a}
+.hint-msg{background:#0d0b2b;border-left:3px solid #6366f1;padding:8px 12px;border-radius:0 6px 6px 0;color:#a5b4fc;margin-bottom:8px;font-size:12px}
+
+/* Complexity + performance pills */
+.pills-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+.cpill{font-size:10px;padding:3px 8px;border-radius:10px;font-weight:600;font-family:monospace}
+.cp-simple{background:#052e16;color:#86efac;border:1px solid #166534}
+.cp-moderate{background:#231a04;color:#fde68a;border:1px solid #78350f}
+.cp-complex{background:#2d0404;color:#fca5a5;border:1px solid #7f1d1d}
+.cp-advanced{background:#1e0d3b;color:#e9d5ff;border:1px solid #4c1d95}
+.cp-info{background:#0c1a3a;color:#93c5fd;border:1px solid #1e40af}
+.cp-green{background:#052e16;color:#86efac;border:1px solid #166534}
+.cp-warn{background:#231a04;color:#fde68a;border:1px solid #78350f}
+
+/* Episode summary box */
+.ep-summary{background:#060b14;border:1px solid #1e2d45;border-radius:8px;padding:12px;margin-bottom:8px}
+.ep-summary-title{font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px}
+.ep-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ep-cell{text-align:center}
+.ep-val{font-family:monospace;font-size:14px;font-weight:700;color:#f1f5f9}
+.ep-lab{font-size:9px;color:#475569;margin-top:2px;text-transform:uppercase;letter-spacing:.05em}
 
 /* Explanation */
-.expl{font-size:11px;color:#64748b;font-family:monospace;background:#0f172a;padding:7px 10px;border-radius:5px;border:1px solid #1e293b;margin-bottom:8px;word-break:break-all}
-
-/* Query analysis */
-.analysis-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
-.analysis-pill{font-size:11px;padding:3px 8px;border-radius:10px;font-weight:500}
-.analysis-ok{background:#14532d;color:#86efac}
-.analysis-warn{background:#7c2d12;color:#fed7aa}
-.analysis-info{background:#1e3a8a;color:#93c5fd}
+.expl{font-size:10.5px;color:#475569;font-family:monospace;background:#060b14;padding:7px 10px;border-radius:5px;border:1px solid #1e2d45;margin-bottom:8px;word-break:break-all}
 
 /* Result table */
-.tbl-wrap{background:#1e293b;border:1px solid #334155;border-radius:8px;overflow:hidden;max-height:200px;overflow-y:auto;margin-bottom:10px}
+.tbl-wrap{background:#0f172a;border:1px solid #1e2d45;border-radius:8px;overflow:hidden;max-height:180px;overflow-y:auto;margin-bottom:10px}
 .rtbl{width:100%;border-collapse:collapse;font-size:11px}
-.rtbl th{background:#0f172a;padding:6px 8px;text-align:left;font-size:10px;font-weight:600;color:#64748b;border-bottom:1px solid #334155;white-space:nowrap}
-.rtbl td{padding:5px 8px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-family:monospace;font-size:10.5px}
+.rtbl th{background:#060b14;padding:6px 8px;text-align:left;font-size:10px;font-weight:700;color:#475569;border-bottom:1px solid #1e2d45;white-space:nowrap;text-transform:uppercase;letter-spacing:.05em}
+.rtbl td{padding:5px 8px;border-bottom:1px solid #0f172a;color:#e2e8f0;font-family:monospace;font-size:10.5px}
 .rtbl tr:last-child td{border-bottom:none}
-.rtbl tr:hover td{background:#273548}
+.rtbl tr:hover td{background:#0d1929}
 
 /* History */
-.hist-box{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px;max-height:200px;overflow-y:auto}
-.hist-item{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #1e293b;font-size:11px}
+.hist-box{background:#0f172a;border:1px solid #1e2d45;border-radius:8px;padding:10px;max-height:200px;overflow-y:auto}
+.hist-item{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #0f172a;font-size:11px}
 .hist-item:last-child{border-bottom:none}
-.hs{color:#64748b;min-width:44px;font-size:10px}
-.hsql{flex:1;font-family:monospace;font-size:10px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hrw{font-weight:600;min-width:40px;text-align:right;font-size:11px}
-.hdone{font-size:9px;background:#14532d;color:#86efac;padding:1px 5px;border-radius:8px}
+.hs{color:#475569;min-width:44px;font-size:10px}
+.hsql{flex:1;font-family:monospace;font-size:10px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hrw{font-weight:700;min-width:40px;text-align:right;font-size:11px}
+.hdone{font-size:9px;background:#052e16;color:#86efac;padding:1px 5px;border-radius:8px}
 .hhint{font-size:9px;background:#1e1b4b;color:#a5b4fc;padding:1px 5px;border-radius:8px}
+.hcx{font-size:9px;background:#0c1a3a;color:#93c5fd;padding:1px 5px;border-radius:8px}
 
 /* Curriculum */
-.curr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
-.curr-card{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:12px}
-.curr-card.current{border-color:#3b82f6;background:#1e3a5f}
+.curr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.curr-card{background:#0f172a;border:1px solid #1e2d45;border-radius:8px;padding:12px;transition:border-color .2s}
+.curr-card.current{border-color:#3b82f6;background:#0c1a3a}
 .curr-card.mastered{border-color:#166534;background:#052e16}
 .curr-prog{display:flex;align-items:center;gap:6px;margin-top:6px}
-.curr-bar{flex:1;background:#0f172a;border-radius:3px;height:6px;overflow:hidden}
-.curr-bar-fill{height:6px;border-radius:3px;background:#22c55e}
+.curr-bar{flex:1;background:#060b14;border-radius:3px;height:5px;overflow:hidden}
+.curr-bar-fill{height:5px;border-radius:3px}
 
 /* Leaderboard */
 .lb-table{width:100%;border-collapse:collapse}
-.lb-table th{background:#0f172a;padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:#64748b;border-bottom:1px solid #334155}
-.lb-table td{padding:8px 10px;border-bottom:1px solid #1e293b;font-size:12px}
-.lb-table tr:hover td{background:#273548}
+.lb-table th{background:#060b14;padding:8px 10px;text-align:left;font-size:10px;font-weight:700;color:#475569;border-bottom:1px solid #1e2d45;text-transform:uppercase;letter-spacing:.05em}
+.lb-table td{padding:8px 10px;border-bottom:1px solid #0f172a;font-size:12px}
+.lb-table tr:hover td{background:#0d1929}
 .rank-1{color:#fbbf24;font-weight:700}
 .rank-2{color:#94a3b8;font-weight:600}
 .rank-3{color:#b45309;font-weight:600}
 
-/* Hint counter */
-.hint-counter{display:flex;gap:4px;align-items:center;margin-bottom:6px}
-.hint-dot{width:10px;height:10px;border-radius:50%;border:1px solid #334155}
-.hint-dot.used{background:#6366f1;border-color:#6366f1}
-.hint-dot.available{background:#1e1b4b;border-color:#4338ca}
-
 /* Empty state */
-.empty{text-align:center;padding:40px 20px;color:#475569}
-
-/* Section title */
-.sec-title{font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:8px;display:flex;align-items:center;gap:6px}
-
-/* Tags */
-.tag{display:inline-block;font-size:10px;padding:2px 6px;border-radius:8px;background:#1e293b;color:#64748b;border:1px solid #334155;margin:2px}
+.empty{text-align:center;padding:36px 20px;color:#334155}
+.sec-title{font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em}
 </style>
 </head>
 <body>
 
 <div class="topbar">
-  <div class="topbar-title">
-    <div class="live"></div>
-    SQL Debug Environment v3.0 — Visual Tester
-  </div>
+  <div class="topbar-title"><div class="live"></div>SQL Debug Environment v3.0 — Visual Tester</div>
   <div class="topbar-links">
-    <a href="/">Home</a>
-    <a href="/docs">API Docs</a>
-    <a href="/tasks">Tasks</a>
-    <a href="/stats">Stats</a>
-    <a href="/leaderboard">Leaderboard</a>
-    <a href="/curriculum">Curriculum</a>
+    <a href="/">Home</a><a href="/docs">API Docs</a>
+    <a href="/tasks">Tasks</a><a href="/stats">Stats</a>
+    <a href="/leaderboard">Leaderboard</a><a href="/curriculum">Curriculum</a>
   </div>
 </div>
 
 <div class="tabs">
-  <button class="tab active" onclick="showPane('tester')">Tester</button>
-  <button class="tab" onclick="showPane('curriculum')">Curriculum</button>
-  <button class="tab" onclick="showPane('leaderboard')">Leaderboard</button>
-  <button class="tab" onclick="showPane('batch')">Batch Evaluate</button>
-  <button class="tab" onclick="showPane('history')">History</button>
+  <button class="tab active" onclick="showPane('tester',this)">Tester</button>
+  <button class="tab" onclick="showPane('curriculum',this)">Curriculum</button>
+  <button class="tab" onclick="showPane('leaderboard',this)">Leaderboard</button>
+  <button class="tab" onclick="showPane('batch',this)">Batch Evaluate</button>
+  <button class="tab" onclick="showPane('history',this)">History</button>
 </div>
 
-<!-- ================================================================= -->
-<!-- TESTER PANE                                                         -->
-<!-- ================================================================= -->
 <div class="container">
+
+<!-- ══════════════════ TESTER PANE ══════════════════ -->
 <div class="pane active" id="pane-tester">
-
   <div class="task-grid" id="taskGrid"></div>
-
-  <div class="url-bar">
-    <div class="dot" id="dot"></div>
-    <span id="urlText">Select a task above to begin</span>
-  </div>
+  <div class="url-bar"><div class="dot" id="dot"></div><span id="urlText">Select a task above to begin</span></div>
 
   <div id="mainPanel" style="display:none">
     <div class="two-col">
       <div class="box">
-        <div class="lbl">Broken query — what the agent receives</div>
+        <div class="lbl">Broken query — what agent receives</div>
         <div class="sql-show" id="brokenQ"></div>
-        <div class="lbl" style="margin-top:10px">Schema hint</div>
+        <div class="lbl" style="margin-top:9px">Schema hint</div>
         <div class="schema-show" id="schemaH"></div>
       </div>
       <div class="box">
@@ -209,14 +193,14 @@ a{color:#60a5fa;text-decoration:none}a:hover{text-decoration:underline}
           <button class="btn btn-hint" onclick="getHint()" id="hintBtn">Hint</button>
           <button class="btn btn-reset" onclick="resetTask()">Reset</button>
         </div>
-        <div class="hint-counter" id="hintCounter">
-          <span style="font-size:10px;color:#64748b;margin-right:2px">Hints:</span>
-          <div class="hint-dot available" id="hd1"></div>
-          <div class="hint-dot available" id="hd2"></div>
-          <div class="hint-dot available" id="hd3"></div>
-          <span style="font-size:10px;color:#64748b;margin-left:4px" id="penaltyLabel"></span>
+        <div class="hint-row">
+          <span style="font-size:10px;color:#475569">Hints:</span>
+          <div class="hint-dot" id="hd1"></div>
+          <div class="hint-dot" id="hd2"></div>
+          <div class="hint-dot" id="hd3"></div>
+          <span class="penalty-lbl" id="penLbl"></span>
         </div>
-        <div class="step-info">Step <b id="sNum">0</b>/<b id="sMax">0</b> &nbsp; Episode: <b id="epId" style="font-family:monospace;font-size:10px">—</b></div>
+        <div class="step-info">Step <b id="sNum">0</b>/<b id="sMax">0</b> &nbsp; Best: <b id="bestRw" style="color:#22c55e">—</b> &nbsp; Ep: <b id="epId" style="font-family:monospace;font-size:10px">—</b></div>
       </div>
     </div>
 
@@ -227,21 +211,40 @@ a{color:#60a5fa;text-decoration:none}a:hover{text-decoration:underline}
     <div id="resultArea" style="display:none">
       <div class="metrics">
         <div class="metric"><div class="metric-v" id="rVal">—</div><div class="metric-l">Reward</div></div>
-        <div class="metric"><div class="metric-v" id="cVal">—</div><div class="metric-l">Correctness</div></div>
-        <div class="metric"><div class="metric-v" id="eVal">—</div><div class="metric-l">Efficiency</div></div>
-        <div class="metric"><div class="metric-v" id="msVal">—</div><div class="metric-l">Exec (ms)</div></div>
+        <div class="metric"><div class="metric-v" id="cVal">—</div><div class="metric-l">Correct</div></div>
+        <div class="metric"><div class="metric-v" id="rwCov">—</div><div class="metric-l">Row Cov</div></div>
+        <div class="metric"><div class="metric-v" id="colCov">—</div><div class="metric-l">Col Cov</div></div>
+        <div class="metric"><div class="metric-v" id="msVal">—</div><div class="metric-l">ms</div></div>
       </div>
       <div class="bar-wrap">
         <div class="bar-row"><span>Reward</span><span id="rPct">0%</span></div>
         <div class="bar-bg"><div class="bar-fill" id="rBar" style="width:0%"></div></div>
       </div>
       <div class="bar-wrap">
-        <div class="bar-row"><span>Correctness</span><span id="cPct">0%</span></div>
-        <div class="bar-bg"><div class="bar-fill" id="cBar" style="width:0%;background:#3b82f6"></div></div>
+        <div class="bar-row"><span>Row coverage</span><span id="rcPct">0%</span></div>
+        <div class="bar-bg"><div class="bar-fill" id="rcBar" style="width:0%;background:#3b82f6"></div></div>
       </div>
+
+      <!-- Complexity + performance pills -->
+      <div class="pills-row" id="pillsRow"></div>
+
+      <!-- Episode summary (shown when done=true) -->
+      <div id="epSummary" style="display:none">
+        <div class="ep-summary">
+          <div class="ep-summary-title">Episode Summary</div>
+          <div class="ep-grid">
+            <div class="ep-cell"><div class="ep-val" id="epSolved">—</div><div class="ep-lab">Solved</div></div>
+            <div class="ep-cell"><div class="ep-val" id="epBest">—</div><div class="ep-lab">Best reward</div></div>
+            <div class="ep-cell"><div class="ep-val" id="epImprove">—</div><div class="ep-lab">Improve rate</div></div>
+            <div class="ep-cell"><div class="ep-val" id="epSteps">—</div><div class="ep-lab">Total steps</div></div>
+            <div class="ep-cell"><div class="ep-val" id="epReason">—</div><div class="ep-lab">Reason</div></div>
+            <div class="ep-cell"><div class="ep-val" id="epHints">—</div><div class="ep-lab">Hints used</div></div>
+          </div>
+        </div>
+      </div>
+
       <div id="smsg" class="smsg"></div>
       <div id="expl" class="expl" style="display:none"></div>
-      <div id="analysisRow" class="analysis-row" style="display:none"></div>
       <div id="tblWrap" class="tbl-wrap" style="display:none"></div>
     </div>
 
@@ -252,73 +255,65 @@ a{color:#60a5fa;text-decoration:none}a:hover{text-decoration:underline}
   </div>
 
   <div id="emptyState" class="empty">
-    <div style="font-size:32px;margin-bottom:10px">↑</div>
-    <div style="font-size:14px;font-weight:500;color:#64748b;margin-bottom:6px">Select a task to start</div>
-    <div style="font-size:12px;color:#475569">Click any task button — the broken query loads automatically</div>
+    <div style="font-size:28px;margin-bottom:10px">↑</div>
+    <div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:6px">Select a task to begin</div>
+    <div style="font-size:12px">Click any task above — broken query loads, submit fixes, see live rewards</div>
   </div>
-
 </div><!-- end tester pane -->
 
-<!-- ================================================================= -->
-<!-- CURRICULUM PANE                                                     -->
-<!-- ================================================================= -->
+<!-- ══════════════════ CURRICULUM PANE ══════════════════ -->
 <div class="pane" id="pane-curriculum">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
     <div>
-      <div style="font-size:16px;font-weight:600;color:#f1f5f9;margin-bottom:4px">Curriculum Progress</div>
-      <div style="font-size:12px;color:#64748b">Auto-advances when avg score ≥ 0.8 over 3 episodes</div>
+      <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:4px">Curriculum Progress</div>
+      <div style="font-size:11px;color:#475569">Auto-advances when avg ≥ 0.8 over 3 episodes per level</div>
     </div>
-    <button class="btn btn-go" style="flex:none;min-width:140px" onclick="loadCurriculum()">Refresh</button>
+    <button class="btn btn-go" style="flex:none;min-width:120px" onclick="loadCurriculum()">Refresh</button>
   </div>
-  <div id="currContent">
-    <div class="empty"><div style="font-size:13px;color:#475569">Click Refresh to load curriculum status</div></div>
-  </div>
+  <div id="currContent"><div class="empty"><div style="font-size:12px">Click Refresh to load</div></div></div>
 </div>
 
-<!-- ================================================================= -->
-<!-- LEADERBOARD PANE                                                    -->
-<!-- ================================================================= -->
+<!-- ══════════════════ LEADERBOARD PANE ══════════════════ -->
 <div class="pane" id="pane-leaderboard">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
     <div>
-      <div style="font-size:16px;font-weight:600;color:#f1f5f9;margin-bottom:4px">Model Leaderboard</div>
-      <div style="font-size:12px;color:#64748b">Compare how different models perform across all 8 tasks</div>
+      <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:4px">Model Leaderboard</div>
+      <div style="font-size:11px;color:#475569">Compare model performance across all 8 tasks</div>
     </div>
-    <button class="btn btn-go" style="flex:none;min-width:140px" onclick="loadLeaderboard()">Refresh</button>
+    <button class="btn btn-go" style="flex:none;min-width:120px" onclick="loadLeaderboard()">Refresh</button>
   </div>
-  <div id="lbContent">
-    <div class="empty"><div style="font-size:13px;color:#475569">Click Refresh to load leaderboard</div></div>
-  </div>
-  <div style="margin-top:20px">
-    <div class="sec-title">Submit your model scores</div>
+  <div id="lbContent"><div class="empty"><div style="font-size:12px">Click Refresh to load</div></div></div>
+  <div style="margin-top:16px">
+    <div class="sec-title">Submit your model</div>
     <div class="box">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
         <div>
           <div class="lbl">Model name</div>
-          <input id="lbModel" type="text" placeholder="e.g. Qwen2.5-72B" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:7px 10px;color:#e2e8f0;font-size:12px;outline:none">
+          <input id="lbModel" type="text" placeholder="e.g. Qwen2.5-72B" style="width:100%;background:#060b14;border:1px solid #1e2d45;border-radius:6px;padding:7px 10px;color:#e2e8f0;font-size:12px;outline:none">
         </div>
         <div>
           <div class="lbl">Mean score (0.0–1.0)</div>
-          <input id="lbScore" type="number" min="0" max="1" step="0.001" placeholder="e.g. 0.942" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:7px 10px;color:#e2e8f0;font-size:12px;outline:none">
+          <input id="lbScore" type="number" min="0" max="1" step="0.001" placeholder="e.g. 0.981" style="width:100%;background:#060b14;border:1px solid #1e2d45;border-radius:6px;padding:7px 10px;color:#e2e8f0;font-size:12px;outline:none">
         </div>
       </div>
-      <button class="btn btn-go" style="min-width:160px" onclick="submitLeaderboard()">Submit Score</button>
-      <span id="lbMsg" style="font-size:12px;color:#64748b;margin-left:10px"></span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input id="lbEpisodes" type="number" min="1" placeholder="Episodes (e.g. 8)" style="width:120px;background:#060b14;border:1px solid #1e2d45;border-radius:6px;padding:7px 10px;color:#e2e8f0;font-size:12px;outline:none">
+        <button class="btn btn-go" style="min-width:140px" onclick="submitLeaderboard()">Submit Score</button>
+        <span id="lbMsg" style="font-size:11px;color:#64748b"></span>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- ================================================================= -->
-<!-- BATCH EVALUATE PANE                                                 -->
-<!-- ================================================================= -->
+<!-- ══════════════════ BATCH PANE ══════════════════ -->
 <div class="pane" id="pane-batch">
-  <div style="margin-bottom:16px">
-    <div style="font-size:16px;font-weight:600;color:#f1f5f9;margin-bottom:4px">Batch Evaluate</div>
-    <div style="font-size:12px;color:#64748b">Score any SQL query against all 8 tasks simultaneously</div>
+  <div style="margin-bottom:14px">
+    <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:4px">Batch Evaluate</div>
+    <div style="font-size:11px;color:#475569">Score any SQL against all 8 tasks simultaneously</div>
   </div>
-  <div class="box" style="margin-bottom:16px">
-    <div class="lbl">SQL Query to evaluate</div>
-    <textarea class="sql-edit" id="batchSql" placeholder="Enter any SQL query to score against all 8 tasks..." style="min-height:100px"></textarea>
+  <div class="box" style="margin-bottom:14px">
+    <div class="lbl">SQL to evaluate</div>
+    <textarea class="sql-edit" id="batchSql" placeholder="Enter SQL to score against all 8 tasks..." style="min-height:90px"></textarea>
     <div class="btn-row">
       <button class="btn btn-go" onclick="runBatch()">Evaluate against all 8 tasks</button>
     </div>
@@ -326,20 +321,16 @@ a{color:#60a5fa;text-decoration:none}a:hover{text-decoration:underline}
   <div id="batchResults"></div>
 </div>
 
-<!-- ================================================================= -->
-<!-- HISTORY PANE                                                        -->
-<!-- ================================================================= -->
+<!-- ══════════════════ HISTORY PANE ══════════════════ -->
 <div class="pane" id="pane-history">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
     <div>
-      <div style="font-size:16px;font-weight:600;color:#f1f5f9;margin-bottom:4px">Episode History</div>
-      <div style="font-size:12px;color:#64748b">Full step-by-step trajectory of the current episode</div>
+      <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:4px">Episode History</div>
+      <div style="font-size:11px;color:#475569">Full step trajectory of current episode with complexity and timing</div>
     </div>
-    <button class="btn btn-go" style="flex:none;min-width:140px" onclick="loadHistory()">Refresh</button>
+    <button class="btn btn-go" style="flex:none;min-width:120px" onclick="loadHistory()">Refresh</button>
   </div>
-  <div id="histContent">
-    <div class="empty"><div style="font-size:13px;color:#475569">Click Refresh after running some steps in the Tester tab</div></div>
-  </div>
+  <div id="histContent"><div class="empty"><div style="font-size:12px">Run some steps in Tester tab, then click Refresh</div></div></div>
 </div>
 
 </div><!-- container -->
@@ -365,58 +356,47 @@ const TASKS=[
   {id:"fix_cte",name:"Fix CTE bug",diff:"hard"},
   {id:"multi_step_aggregation",name:"Multi-dim report",diff:"expert"},
 ];
+let cur=null,hist=[],hintsUsed=0;
 
-let cur=null, hist=[], hintsUsed=0;
-
-// ── Tab switching ──────────────────────────────────────────────────────────
-function showPane(id){
+function showPane(id,el){
   document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('pane-'+id).classList.add('active');
-  event.target.classList.add('active');
+  if(el) el.classList.add('active');
 }
+function setUrl(t,s){document.getElementById('urlText').textContent=t;document.getElementById('dot').className='dot '+(s||'')}
 
-// ── URL bar ────────────────────────────────────────────────────────────────
-function setUrl(t,s){
-  document.getElementById('urlText').textContent=t;
-  document.getElementById('dot').className='dot '+(s||'');
-}
-
-// ── Hint dots ──────────────────────────────────────────────────────────────
 function updateHintDots(used){
   hintsUsed=used;
   for(let i=1;i<=3;i++){
     const d=document.getElementById('hd'+i);
-    d.className='hint-dot '+(i<=used?'used':'available');
+    d.className='hint-dot '+(i<=used?'used':'');
   }
-  const penalty=used*10;
-  document.getElementById('penaltyLabel').textContent=used>0?`(-${penalty}% penalty)`:'';
-  document.getElementById('hintBtn').disabled=used>=3;
-  document.getElementById('hintBtn').style.opacity=used>=3?'0.4':'1';
+  document.getElementById('penLbl').textContent=used>0?`-${used*10}% penalty`:'';
+  const hb=document.getElementById('hintBtn');
+  hb.disabled=used>=3;hb.style.opacity=used>=3?'0.4':'1';
 }
 
-// ── Task grid ──────────────────────────────────────────────────────────────
 (function buildGrid(){
   const g=document.getElementById('taskGrid');
   TASKS.forEach(t=>{
     const b=document.createElement('div');
     b.className='task-btn';b.id='btn_'+t.id;
     b.innerHTML=`<div class="task-name">${t.name}</div><span class="diff-badge ${t.diff}">${t.diff}</span>`;
-    b.onclick=()=>selectTask(t.id);
-    g.appendChild(b);
+    b.onclick=()=>selectTask(t.id);g.appendChild(b);
   });
 })();
 
-// ── Select task ────────────────────────────────────────────────────────────
 async function selectTask(tid){
   document.querySelectorAll('.task-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('btn_'+tid).classList.add('active');
   document.getElementById('resultArea').style.display='none';
   document.getElementById('histSec').style.display='none';
   document.getElementById('hintArea').style.display='none';
+  document.getElementById('epSummary').style.display='none';
   document.getElementById('emptyState').style.display='none';
   hist=[];updateHintDots(0);
-  setUrl('POST /reset — loading task...','o');
+  setUrl('POST /reset — loading...','o');
   try{
     const r=await fetch('/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_id:tid})});
     const o=await r.json();
@@ -426,32 +406,34 @@ async function selectTask(tid){
     document.getElementById('sqlIn').value='';
     document.getElementById('sNum').textContent=o.step_count||0;
     document.getElementById('sMax').textContent=o.max_steps||0;
-    document.getElementById('epId').textContent=((o.episode_id||'').slice(0,8)||'—')+'...';
+    document.getElementById('bestRw').textContent='—';
+    document.getElementById('epId').textContent=((o.episode_id||'').slice(0,8)||'—')+'…';
     document.getElementById('mainPanel').style.display='block';
-    setUrl('Ready — write your SQL fix and submit','g');
-  }catch(e){setUrl('Connection failed — is the server running?','r');}
+    setUrl('Ready — write SQL and submit','g');
+  }catch(e){setUrl('Connection failed — is server running?','r');}
 }
 
 async function resetTask(){if(cur)await selectTask(cur);}
 function fillAnswer(){if(cur&&CORRECT[cur])document.getElementById('sqlIn').value=CORRECT[cur];}
 
-// ── Hint ───────────────────────────────────────────────────────────────────
 async function getHint(){
   if(!cur)return;
-  setUrl('POST /hint — requesting hint...','o');
+  setUrl('POST /hint — requesting...','o');
   try{
     const r=await fetch('/hint',{method:'POST'});
     const h=await r.json();
-    document.getElementById('hintText').textContent=`Hint ${h.level}/3: ${h.hint}`;
-    if(h.hints_remaining===0) document.getElementById('hintText').textContent+=' (No more hints available)';
-    document.getElementById('hintText').textContent+=`\nPenalty: -${Math.round(h.total_penalty*100)}% applied to future rewards.`;
-    document.getElementById('hintArea').style.display='block';
-    updateHintDots(h.level);
-    setUrl(`Hint ${h.level}/3 used — ${Math.round(h.total_penalty*100)}% reward penalty active`,'o');
+    if(h.hints_remaining===undefined||h.level>0){
+      document.getElementById('hintText').textContent=`Level ${h.level}: ${h.hint}\n⚠ Penalty: -${Math.round(h.total_penalty*100)}% applied to future rewards. ${h.hints_remaining} hint(s) remaining.`;
+      document.getElementById('hintArea').style.display='block';
+      updateHintDots(h.level);
+    }else{
+      document.getElementById('hintText').textContent=h.hint;
+      document.getElementById('hintArea').style.display='block';
+    }
+    setUrl(`Hint ${h.level}/3 — ${Math.round(h.total_penalty*100)}% penalty active`,'o');
   }catch(e){setUrl('Hint request failed','r');}
 }
 
-// ── Submit step ────────────────────────────────────────────────────────────
 async function submitStep(){
   if(!cur)return;
   const sql=document.getElementById('sqlIn').value.trim();
@@ -461,46 +443,78 @@ async function submitStep(){
     const r=await fetch('/step',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:{sql_query:sql,reasoning:'Visual tester'}})});
     const o=await r.json();
     const bd=o.reward_breakdown||{};
-    const rw=parseFloat(o.reward||0),co=parseFloat(bd.correctness||0),ef=parseFloat(bd.efficiency||0);
+    const rw=parseFloat(o.reward||0);
+    const co=parseFloat(bd.correctness||0);
+    const rc=parseFloat(bd.row_coverage||0);
+    const cc=parseFloat(bd.column_coverage||0);
     const ms=parseFloat(o.execution_time_ms||0);
+    const rowCnt=o.row_count||0;
+    const bestRw=parseFloat(o.best_reward_so_far||rw);
 
     document.getElementById('sNum').textContent=o.step_count||0;
+    document.getElementById('bestRw').textContent=bestRw.toFixed(3);
     if(o.hints_used!==undefined)updateHintDots(o.hints_used);
-
-    setUrl(`POST /step — ${o.error_message?'error':'ok'} (${ms.toFixed(2)}ms) → reward: ${rw.toFixed(4)}`,o.error_message?'r':'g');
+    setUrl(`POST /step — ${o.error_message?'error':'ok'} (${ms.toFixed(2)}ms, ${rowCnt} rows) → reward: ${rw.toFixed(4)}`,o.error_message?'r':'g');
 
     document.getElementById('rVal').textContent=rw.toFixed(4);
     document.getElementById('cVal').textContent=co.toFixed(2);
-    document.getElementById('eVal').textContent=ef.toFixed(2);
-    document.getElementById('msVal').textContent=ms.toFixed(2);
+    document.getElementById('rwCov').textContent=rc.toFixed(2);
+    document.getElementById('colCov').textContent=cc.toFixed(2);
+    document.getElementById('msVal').textContent=ms.toFixed(1);
 
-    const rp=Math.round(rw*100),cp=Math.round(co*100);
+    const rp=Math.round(rw*100),rcp=Math.round(rc*100);
     document.getElementById('rPct').textContent=rp+'%';
-    document.getElementById('cPct').textContent=cp+'%';
+    document.getElementById('rcPct').textContent=rcp+'%';
     document.getElementById('rBar').style.cssText=`width:${rp}%;background:${rw>=0.8?'#22c55e':rw>=0.5?'#f59e0b':'#ef4444'}`;
-    document.getElementById('cBar').style.cssText=`width:${cp}%;background:#3b82f6`;
+    document.getElementById('rcBar').style.cssText=`width:${rcp}%;background:#3b82f6`;
 
+    // Complexity + performance pills
+    const pr=document.getElementById('pillsRow');
+    let pills='';
+    if(o.query_complexity){
+      const qc=o.query_complexity;
+      const cx={simple:'cp-simple',moderate:'cp-moderate',complex:'cp-complex',advanced:'cp-advanced'}[qc.label]||'cp-info';
+      pills+=`<span class="cpill ${cx}">${qc.label}</span>`;
+      if(qc.has_join) pills+=`<span class="cpill cp-info">JOIN×${qc.join_count}</span>`;
+      if(qc.has_aggregation) pills+=`<span class="cpill cp-info">AGG</span>`;
+      if(qc.has_window_function) pills+=`<span class="cpill cp-warn">WINDOW</span>`;
+      if(qc.has_cte) pills+=`<span class="cpill cp-warn">CTE</span>`;
+      if(qc.has_subquery) pills+=`<span class="cpill cp-warn">SUBQUERY</span>`;
+    }
+    if(o.performance_metrics){
+      const pm=o.performance_metrics;
+      pills+=`<span class="cpill ${pm.scan_count===0?'cp-green':pm.scan_count<=2?'cp-info':'cp-complex'}">SCANS:${pm.scan_count}</span>`;
+      pills+=`<span class="cpill ${pm.uses_index?'cp-green':'cp-warn'}">${pm.uses_index?'IDX✓':'NO IDX'}</span>`;
+      if(pm.speedup_ratio>1) pills+=`<span class="cpill cp-green">${pm.speedup_ratio.toFixed(1)}×faster</span>`;
+    }
+    pr.innerHTML=pills;pr.style.display=pills?'flex':'none';
+
+    // Status message
     const sm=document.getElementById('smsg');
-    if(o.done&&rw>=0.8)sm.innerHTML=`<div class="ok">Task solved! reward=${rw.toFixed(4)} correctness=${co.toFixed(2)} done=true</div>`;
-    else if(o.done)sm.innerHTML=`<div class="warn">Episode ended (max steps). Final reward=${rw.toFixed(4)}</div>`;
-    else if(o.error_message)sm.innerHTML=`<div class="err">SQL error: ${o.error_message}</div>`;
-    else if(rw>=0.8)sm.innerHTML=`<div class="ok">Great result! reward=${rw.toFixed(4)} — keep going</div>`;
-    else sm.innerHTML=`<div class="info">Step ${o.step_count}/${o.max_steps} — reward=${rw.toFixed(4)} — refine your query</div>`;
+    if(o.done&&rw>=0.8) sm.innerHTML=`<div class="ok">✓ Task solved! reward=${rw.toFixed(4)} rows=${rowCnt} done=true</div>`;
+    else if(o.done) sm.innerHTML=`<div class="warn">Episode ended (max steps). Final reward=${rw.toFixed(4)}</div>`;
+    else if(o.error_message) sm.innerHTML=`<div class="err">SQL error: ${o.error_message}</div>`;
+    else if(rw>=0.8) sm.innerHTML=`<div class="ok">Great result! reward=${rw.toFixed(4)} rows=${rowCnt} — keep iterating</div>`;
+    else sm.innerHTML=`<div class="info">Step ${o.step_count}/${o.max_steps} — reward=${rw.toFixed(4)} rows=${rowCnt} — refine your SQL</div>`;
 
+    // Explanation
     const ex=document.getElementById('expl');
     if(bd.explanation){ex.textContent=bd.explanation;ex.style.display='block';}else ex.style.display='none';
 
-    // Query analysis pills
-    const ar=document.getElementById('analysisRow');
-    if(o.query_analysis){
-      const qa=o.query_analysis;
-      ar.innerHTML=`
-        <span class="analysis-pill ${qa.scan_count===0?'analysis-ok':qa.scan_count<=2?'analysis-info':'analysis-warn'}">Scans: ${qa.scan_count}</span>
-        <span class="analysis-pill ${qa.uses_index?'analysis-ok':'analysis-warn'}">${qa.uses_index?'Index used':'No index'}</span>
-        <span class="analysis-pill analysis-info">${qa.plan_steps} plan steps</span>
-        <span class="analysis-pill analysis-info" style="flex:1;max-width:none">${qa.suggestion}</span>`;
-      ar.style.display='flex';
-    }else ar.style.display='none';
+    // Episode summary
+    if(o.done&&o.episode_summary){
+      const es=o.episode_summary;
+      document.getElementById('epSolved').textContent=es.solved?'✓ YES':'✗ NO';
+      document.getElementById('epSolved').style.color=es.solved?'#22c55e':'#ef4444';
+      document.getElementById('epBest').textContent=parseFloat(es.best_reward||0).toFixed(3);
+      document.getElementById('epImprove').textContent=parseFloat(es.improvement_rate||0).toFixed(3);
+      document.getElementById('epSteps').textContent=es.total_steps||0;
+      document.getElementById('epReason').textContent=es.termination_reason||'—';
+      document.getElementById('epHints').textContent=es.hints_used||0;
+      document.getElementById('epSummary').style.display='block';
+    }else{
+      document.getElementById('epSummary').style.display='none';
+    }
 
     // Result table
     const tw=document.getElementById('tblWrap');
@@ -508,21 +522,25 @@ async function submitStep(){
       const cols=Object.keys(o.query_result[0]);
       let h=`<table class="rtbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>`;
       o.query_result.forEach(row=>{
-        h+='<tr>'+cols.map(c=>{const v=row[c];return`<td>${typeof v==='number'?(Number.isInteger(v)?v:parseFloat(v.toFixed(2))):(v===null?'<span style="color:#475569">null</span>':v)}</td>`}).join('')+'</tr>';
+        h+='<tr>'+cols.map(c=>{
+          const v=row[c];
+          return`<td>${typeof v==='number'?(Number.isInteger(v)?v:parseFloat(v.toFixed(2))):(v===null?'<span style="color:#334155">null</span>':v)}</td>`;
+        }).join('')+'</tr>';
       });
       h+='</tbody></table>';tw.innerHTML=h;tw.style.display='block';
     }else if(o.error_message){
-      tw.innerHTML=`<div style="padding:10px;font-size:11px;color:#64748b">No result — query failed</div>`;tw.style.display='block';
+      tw.innerHTML=`<div style="padding:10px;font-size:11px;color:#475569">No result — query failed</div>`;tw.style.display='block';
     }else tw.style.display='none';
 
     // Step history
-    const hintFlag=hintsUsed>0;
-    hist.push({step:o.step_count,rw,sql:sql.slice(0,58)+(sql.length>58?'...':''),done:o.done,hint:hintFlag});
+    const qc=o.query_complexity;
+    hist.push({step:o.step_count,rw,sql:sql.slice(0,55)+(sql.length>55?'...':''),done:o.done,hint:hintsUsed>0,cx:qc?qc.label:null});
     document.getElementById('histList').innerHTML=hist.map(h=>`
       <div class="hist-item">
         <span class="hs">Step ${h.step}</span>
         <span class="hsql">${h.sql}</span>
         <span class="hrw" style="color:${h.rw>=0.8?'#22c55e':h.rw>=0.5?'#f59e0b':'#ef4444'}">${h.rw.toFixed(3)}</span>
+        ${h.cx?`<span class="hcx">${h.cx}</span>`:''}
         ${h.done?'<span class="hdone">done</span>':''}
         ${h.hint?'<span class="hhint">hint</span>':''}
       </div>`).join('');
@@ -536,156 +554,149 @@ async function submitStep(){
   }
 }
 
-// ── Curriculum ─────────────────────────────────────────────────────────────
 async function loadCurriculum(){
-  document.getElementById('currContent').innerHTML='<div class="empty"><div style="font-size:12px;color:#475569">Loading...</div></div>';
+  document.getElementById('currContent').innerHTML='<div class="empty"><div style="font-size:11px">Loading...</div></div>';
   try{
-    const r=await fetch('/curriculum');
-    const d=await r.json();
+    const r=await fetch('/curriculum');const d=await r.json();
     const tasks=d.tasks||[];
-    let html=`<div style="margin-bottom:16px;font-size:13px;color:#94a3b8">Progress: <b style="color:#f1f5f9">${d.progress}</b> &nbsp; Current task: <b style="color:#60a5fa">${d.current_task}</b></div>`;
+    let html=`<div style="margin-bottom:14px;font-size:12px;color:#64748b">Progress: <b style="color:#f1f5f9">${d.progress}</b> &nbsp; Current: <b style="color:#38bdf8">${d.current_task}</b></div>`;
     html+='<div class="curr-grid">';
+    const dc={easy:'#22c55e',medium:'#f59e0b',hard:'#ef4444',expert:'#a78bfa'};
     tasks.forEach(t=>{
       const cls=t.mastered?'mastered':t.current?'current':'';
       const pct=Math.min(100,Math.round((t.recent_avg/0.8)*100));
-      const diffColors={easy:'#22c55e',medium:'#f59e0b',hard:'#ef4444',expert:'#a78bfa'};
-      const dc=diffColors[t.difficulty]||'#94a3b8';
+      const col=dc[t.difficulty]||'#64748b';
       html+=`<div class="curr-card ${cls}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <span style="font-size:12px;font-weight:600;color:#f1f5f9">${t.task_id.replace(/_/g,' ')}</span>
-          <span style="font-size:10px;font-weight:600;color:${dc}">${t.difficulty.toUpperCase()}</span>
+          <span style="font-size:11px;font-weight:700;color:#f1f5f9">${t.task_id.replace(/_/g,' ')}</span>
+          <span style="font-size:9px;font-weight:700;color:${col}">${t.difficulty.toUpperCase()}</span>
         </div>
-        <div style="font-size:11px;color:#64748b;margin-bottom:6px">Episodes: ${t.episodes} &nbsp; Avg: ${t.recent_avg.toFixed(2)}/0.80</div>
+        <div style="font-size:10px;color:#475569;margin-bottom:6px">Episodes: ${t.episodes} &nbsp; Avg: ${t.recent_avg.toFixed(2)}/0.80</div>
         <div class="curr-prog">
           <div class="curr-bar"><div class="curr-bar-fill" style="width:${pct}%;background:${t.mastered?'#22c55e':'#3b82f6'}"></div></div>
-          <span style="font-size:10px;color:${t.mastered?'#22c55e':'#64748b'};min-width:40px;text-align:right">${t.mastered?'✓ done':pct+'%'}</span>
+          <span style="font-size:10px;color:${t.mastered?'#22c55e':'#475569'};min-width:38px;text-align:right">${t.mastered?'✓ done':pct+'%'}</span>
         </div>
-        ${t.current?'<div style="font-size:10px;color:#60a5fa;margin-top:4px">← current</div>':''}
+        ${t.current?'<div style="font-size:9px;color:#38bdf8;margin-top:4px">← active</div>':''}
       </div>`;
     });
     html+='</div>';
     document.getElementById('currContent').innerHTML=html;
-  }catch(e){document.getElementById('currContent').innerHTML=`<div class="empty"><div style="font-size:12px;color:#ef4444">Failed to load: ${e.message}</div></div>`;}
+  }catch(e){document.getElementById('currContent').innerHTML=`<div class="empty"><div style="font-size:11px;color:#ef4444">Failed: ${e.message}</div></div>`;}
 }
 
-// ── Leaderboard ────────────────────────────────────────────────────────────
 async function loadLeaderboard(){
-  document.getElementById('lbContent').innerHTML='<div class="empty"><div style="font-size:12px;color:#475569">Loading...</div></div>';
+  document.getElementById('lbContent').innerHTML='<div class="empty"><div style="font-size:11px">Loading...</div></div>';
   try{
-    const r=await fetch('/leaderboard');
-    const d=await r.json();
+    const r=await fetch('/leaderboard');const d=await r.json();
     const entries=d.leaderboard||[];
     const sess=d.current_session;
-
     let html='';
-    if(entries.length===0&&(!sess||sess.total_episodes===0)){
-      html='<div class="empty"><div style="font-size:13px;color:#475569">No entries yet. Run inference.py to submit scores.</div></div>';
-    }else{
-      html=`<div class="box" style="margin-bottom:12px">
-        <div class="lbl" style="margin-bottom:10px">Current session</div>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
-          <div><span style="color:#64748b">Mean score:</span> <b style="color:#22c55e">${sess?sess.mean_score.toFixed(4):'—'}</b></div>
-          <div><span style="color:#64748b">Episodes:</span> <b style="color:#f1f5f9">${sess?sess.episodes:0}</b></div>
-          <div><span style="color:#64748b">Steps:</span> <b style="color:#f1f5f9">${sess?sess.steps:0}</b></div>
+    if(sess){
+      html+=`<div class="box" style="margin-bottom:10px">
+        <div class="lbl" style="margin-bottom:8px">Current session</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px">
+          <div><span style="color:#475569">Mean score:</span> <b style="color:#22c55e">${(sess.mean_score||0).toFixed(4)}</b></div>
+          <div><span style="color:#475569">Episodes:</span> <b style="color:#f1f5f9">${sess.episodes||0}</b></div>
+          <div><span style="color:#475569">Steps:</span> <b style="color:#f1f5f9">${sess.steps||0}</b></div>
         </div>
       </div>`;
-
-      if(entries.length>0){
-        html+=`<div class="box"><table class="lb-table">
-          <tr><th>#</th><th>Model</th><th>Mean Score</th><th>Episodes</th></tr>`;
-        entries.forEach((e,i)=>{
-          const rc=i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'';
-          html+=`<tr>
-            <td class="${rc}">${i+1}</td>
-            <td style="color:#f1f5f9;font-weight:500">${e.model_name}</td>
-            <td style="color:#22c55e;font-weight:600">${parseFloat(e.mean_score).toFixed(4)}</td>
-            <td style="color:#94a3b8">${e.episodes}</td>
-          </tr>`;
-        });
-        html+='</table></div>';
-      }
+    }
+    if(entries.length>0){
+      html+=`<div class="box"><table class="lb-table"><tr><th>#</th><th>Model</th><th>Mean Score</th><th>Episodes</th></tr>`;
+      entries.forEach((e,i)=>{
+        const rc=i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'';
+        html+=`<tr><td class="${rc}">${i+1}</td><td style="color:#f1f5f9;font-weight:600">${e.model_name}</td><td style="color:#22c55e;font-weight:700">${parseFloat(e.mean_score).toFixed(4)}</td><td style="color:#64748b">${e.episodes}</td></tr>`;
+      });
+      html+='</table></div>';
+    }else{
+      html+='<div class="empty"><div style="font-size:12px">No submissions yet. Use the form below.</div></div>';
     }
     document.getElementById('lbContent').innerHTML=html;
-  }catch(e){document.getElementById('lbContent').innerHTML=`<div class="empty"><div style="font-size:12px;color:#ef4444">Failed: ${e.message}</div></div>`;}
+  }catch(e){document.getElementById('lbContent').innerHTML=`<div class="empty"><div style="font-size:11px;color:#ef4444">Failed: ${e.message}</div></div>`;}
 }
 
 async function submitLeaderboard(){
   const model=document.getElementById('lbModel').value.trim();
   const score=parseFloat(document.getElementById('lbScore').value);
+  const eps=parseInt(document.getElementById('lbEpisodes').value)||1;
   if(!model||isNaN(score)||score<0||score>1){document.getElementById('lbMsg').textContent='Enter valid model name and score (0–1)';return;}
   try{
-    const r=await fetch('/leaderboard/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model_name:model,mean_score:score,episodes:1})});
+    const r=await fetch('/leaderboard/submit',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model_name:model,mean_score:score,episodes:eps,best_task:null,submitted_at:null})});
     const d=await r.json();
     document.getElementById('lbMsg').textContent=`Submitted! Rank: #${d.rank}`;
-    setTimeout(loadLeaderboard,500);
+    setTimeout(loadLeaderboard,400);
   }catch(e){document.getElementById('lbMsg').textContent='Failed: '+e.message;}
 }
 
-// ── Batch evaluate ─────────────────────────────────────────────────────────
 async function runBatch(){
   const sql=document.getElementById('batchSql').value.trim();
   if(!sql){alert('Enter a SQL query first.');return;}
-  document.getElementById('batchResults').innerHTML='<div class="empty"><div style="font-size:12px;color:#475569">Evaluating against all 8 tasks...</div></div>';
+  document.getElementById('batchResults').innerHTML='<div class="empty"><div style="font-size:11px">Evaluating against all 8 tasks...</div></div>';
   try{
     const r=await fetch('/evaluate/batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sql_query:sql})});
     const d=await r.json();
     const res=d.results_by_task||{};
-    let html=`<div style="margin-bottom:12px;font-size:13px;color:#94a3b8">Mean score: <b style="color:${d.mean_score>=0.8?'#22c55e':d.mean_score>=0.5?'#f59e0b':'#ef4444'};font-size:16px">${d.mean_score.toFixed(4)}</b> &nbsp; Tasks solved: <b style="color:#f1f5f9">${d.tasks_solved}/8</b></div>`;
-    html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">';
-    const diffColors={easy:'#22c55e',medium:'#f59e0b',hard:'#ef4444',expert:'#a78bfa'};
+    const mean=parseFloat(d.mean_score||0);
+    let html=`<div style="margin-bottom:10px;font-size:13px;color:#64748b">
+      Mean: <b style="color:${mean>=0.8?'#22c55e':mean>=0.5?'#f59e0b':'#ef4444'};font-size:16px">${mean.toFixed(4)}</b>
+      &nbsp; Solved: <b style="color:#f1f5f9">${d.tasks_solved||0}/8</b>
+    </div>`;
+    html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">';
+    const dc={easy:'#22c55e',medium:'#f59e0b',hard:'#ef4444',expert:'#a78bfa'};
     TASKS.forEach(t=>{
-      const res_t=res[t.id]||{};
-      const rw=parseFloat(res_t.reward||0);
-      const dc=diffColors[t.diff];
-      html+=`<div class="box" style="border-color:${rw>=0.8?'#166534':rw>=0.5?'#78350f':'#334155'}">
+      const rt=res[t.id]||{};const rw=parseFloat(rt.reward||0);const col=dc[t.diff];
+      html+=`<div class="box" style="border-color:${rw>=0.8?'#166534':rw>=0.5?'#78350f':'#1e2d45'}">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-size:11px;font-weight:500;color:#f1f5f9">${t.name}</span>
-          <span style="font-size:10px;font-weight:600;color:${dc}">${t.diff}</span>
+          <span style="font-size:11px;font-weight:600;color:#f1f5f9">${t.name}</span>
+          <span style="font-size:9px;font-weight:700;color:${col}">${t.diff}</span>
         </div>
-        <div style="font-size:22px;font-weight:700;color:${rw>=0.8?'#22c55e':rw>=0.5?'#f59e0b':'#ef4444'};margin-bottom:4px">${rw.toFixed(3)}</div>
-        ${res_t.error?`<div style="font-size:10px;color:#ef4444">${res_t.error.slice(0,60)}</div>`:`<div style="font-size:10px;color:#64748b">${res_t.rows||0} rows returned</div>`}
+        <div style="font-size:20px;font-weight:700;color:${rw>=0.8?'#22c55e':rw>=0.5?'#f59e0b':'#ef4444'};margin-bottom:4px">${rw.toFixed(3)}</div>
+        ${rt.error?`<div style="font-size:9px;color:#ef4444">${rt.error.slice(0,50)}</div>`:`<div style="font-size:9px;color:#475569">${rt.rows||0} rows</div>`}
       </div>`;
     });
     html+='</div>';
     document.getElementById('batchResults').innerHTML=html;
-  }catch(e){document.getElementById('batchResults').innerHTML=`<div class="empty"><div style="font-size:12px;color:#ef4444">Failed: ${e.message}</div></div>`;}
+  }catch(e){document.getElementById('batchResults').innerHTML=`<div class="empty"><div style="font-size:11px;color:#ef4444">Failed: ${e.message}</div></div>`;}
 }
 
-// ── Episode history pane ───────────────────────────────────────────────────
 async function loadHistory(){
-  document.getElementById('histContent').innerHTML='<div class="empty"><div style="font-size:12px;color:#475569">Loading...</div></div>';
+  document.getElementById('histContent').innerHTML='<div class="empty"><div style="font-size:11px">Loading...</div></div>';
   try{
-    const r=await fetch('/history');
-    const d=await r.json();
+    const r=await fetch('/history');const d=await r.json();
     if(!d.steps||d.steps.length===0){
-      document.getElementById('histContent').innerHTML='<div class="empty"><div style="font-size:13px;color:#475569">No steps yet in current episode. Run some steps in the Tester tab first.</div></div>';
-      return;
+      document.getElementById('histContent').innerHTML='<div class="empty"><div style="font-size:12px">No steps yet. Run steps in Tester tab first.</div></div>';return;
     }
-    let html=`<div style="margin-bottom:12px;font-size:12px;color:#94a3b8">
-      Episode: <b style="font-family:monospace;color:#60a5fa">${(d.episode_id||'').slice(0,16)}...</b> &nbsp;
-      Task: <b style="color:#f1f5f9">${d.task_id}</b> &nbsp;
-      Steps: <b style="color:#f1f5f9">${d.total_steps}</b> &nbsp;
-      Cumulative reward: <b style="color:#22c55e">${parseFloat(d.cumulative_reward||0).toFixed(4)}</b>
-      ${d.hints_used>0?`&nbsp; Hints: <b style="color:#a5b4fc">${d.hints_used} (penalty ${Math.round(d.hint_penalty*100)}%)</b>`:''}
+    let html=`<div style="margin-bottom:10px;font-size:11px;color:#64748b;display:flex;flex-wrap:wrap;gap:12px">
+      <span>Episode: <b style="font-family:monospace;color:#38bdf8">${(d.episode_id||'').slice(0,12)}…</b></span>
+      <span>Task: <b style="color:#f1f5f9">${d.task_id||'—'}</b></span>
+      <span>Steps: <b style="color:#f1f5f9">${d.total_steps||0}</b></span>
+      <span>Cumulative: <b style="color:#22c55e">${parseFloat(d.cumulative_reward||0).toFixed(4)}</b></span>
+      <span>Best: <b style="color:#22c55e">${parseFloat(d.best_reward||0).toFixed(4)}</b></span>
+      <span>Improve: <b style="color:#a78bfa">${parseFloat(d.improvement_rate||0).toFixed(3)}</b></span>
+      ${d.hints_used>0?`<span>Hints: <b style="color:#a5b4fc">${d.hints_used} (-${Math.round(d.hint_penalty*100)}%)</b></span>`:''}
     </div>`;
-    html+=`<div class="hist-box" style="max-height:400px">`;
+    html+=`<div class="hist-box" style="max-height:380px">`;
     d.steps.forEach(s=>{
       const rw=parseFloat(s.reward||0);
-      html+=`<div class="hist-item" style="flex-direction:column;align-items:flex-start;padding:10px 0;gap:4px">
+      const cx=s.complexity||'';
+      const cxcls={simple:'cp-simple',moderate:'cp-moderate',complex:'cp-complex',advanced:'cp-advanced'}[cx]||'cp-info';
+      html+=`<div class="hist-item" style="flex-direction:column;align-items:flex-start;padding:10px 0;gap:5px">
         <div style="display:flex;width:100%;gap:8px;align-items:center">
           <span class="hs">Step ${s.step}</span>
           <span class="hrw" style="color:${rw>=0.8?'#22c55e':rw>=0.5?'#f59e0b':'#ef4444'}">${rw.toFixed(3)}</span>
+          ${cx?`<span class="cpill ${cxcls}" style="font-size:9px">${cx}</span>`:''}
+          ${s.exec_ms?`<span style="font-size:10px;color:#334155">${parseFloat(s.exec_ms).toFixed(2)}ms</span>`:''}
           ${s.done?'<span class="hdone">done</span>':''}
-          ${s.exec_ms?`<span style="font-size:10px;color:#475569">${parseFloat(s.exec_ms).toFixed(2)}ms</span>`:''}
         </div>
-        <div style="font-family:monospace;font-size:10.5px;color:#94a3b8;word-break:break-all;padding-left:52px">${s.sql_query||''}</div>
-        ${s.error?`<div style="font-size:10.5px;color:#f87171;padding-left:52px">Error: ${s.error.slice(0,100)}</div>`:''}
-        ${s.reasoning?`<div style="font-size:10.5px;color:#64748b;padding-left:52px;font-style:italic">${s.reasoning}</div>`:''}
+        <div style="font-family:monospace;font-size:10.5px;color:#64748b;padding-left:52px;word-break:break-all">${s.sql_query||''}</div>
+        ${s.error?`<div style="font-size:10.5px;color:#f87171;padding-left:52px">⚠ ${s.error.slice(0,100)}</div>`:''}
+        ${s.reasoning&&s.reasoning!=='Visual tester'?`<div style="font-size:10px;color:#475569;padding-left:52px;font-style:italic">${s.reasoning}</div>`:''}
       </div>`;
     });
     html+='</div>';
     document.getElementById('histContent').innerHTML=html;
-  }catch(e){document.getElementById('histContent').innerHTML=`<div class="empty"><div style="font-size:12px;color:#ef4444">Failed: ${e.message}</div></div>`;}
+  }catch(e){document.getElementById('histContent').innerHTML=`<div class="empty"><div style="font-size:11px;color:#ef4444">Failed: ${e.message}</div></div>`;}
 }
 </script>
 </body>

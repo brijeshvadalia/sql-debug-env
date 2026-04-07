@@ -110,6 +110,9 @@ class SQLAction(BaseModel):
 
 ```python
 class SQLObservation(BaseModel):
+    # Identity
+    episode_id: str                       # UUID of current episode
+
     # Task context
     task_id: str
     task_description: str
@@ -119,26 +122,49 @@ class SQLObservation(BaseModel):
     # Execution feedback
     error_message: Optional[str]
     query_result: Optional[list[dict]]
+    row_count: int                        # number of rows returned
     execution_time_ms: Optional[float]
 
     # Reward signal
     reward: float                         # [0.0, 1.0]
     reward_breakdown: Optional[RewardBreakdown]
+    #   .total, .correctness, .efficiency
+    #   .row_coverage    ← new: fraction of expected rows matched
+    #   .column_coverage ← new: fraction of expected columns present
+    #   .hint_penalty    ← new: accumulated hint penalty
 
-    # Advanced: multi-turn memory
-    conversation_history: list[dict]      # last 5 steps
+    # Multi-turn memory
+    conversation_history: list[dict]      # last 5 steps: sql, error, reward, complexity
 
-    # Advanced: query analysis
-    query_analysis: Optional[QueryAnalysis]
+    # Query intelligence (NEW in v3.0)
+    query_complexity: Optional[QueryComplexity]
+    #   .label: simple | moderate | complex | advanced
+    #   .has_join, .has_aggregation, .has_cte, .has_window_function
+    #   .join_count, .subquery_depth, .complexity_score
 
-    # Advanced: hint system
+    performance_metrics: Optional[PerformanceMetrics]
+    #   .execution_ms, .baseline_ms, .speedup_ratio
+    #   .scan_count, .uses_index, .efficiency_score, .suggestion
+
+    # Hint system
     hint_available: bool
     hints_used: int
+    hint_penalty: float                   # cumulative penalty (0.0–0.3)
 
-    # Episode metadata
+    # Episode state
     step_count: int
     max_steps: int
     done: bool
+    best_reward_so_far: float             # highest reward this episode
+
+    # Episode analytics — emitted when done=True (NEW in v3.0)
+    episode_summary: Optional[EpisodeSummary]
+    #   .solved: bool
+    #   .termination_reason: "solved" | "max_steps"
+    #   .best_reward: float
+    #   .improvement_rate: float
+    #   .step_rewards: list[float]
+    #   .hints_used, .hint_penalty_total
 ```
 
 ---

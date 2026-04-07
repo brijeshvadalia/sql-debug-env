@@ -170,6 +170,9 @@ action_space:
 observation_space:
   type: object
   properties:
+    episode_id:
+      type: string
+      description: UUID of current episode.
     task_id:
       type: string
     task_description:
@@ -184,6 +187,9 @@ observation_space:
     query_result:
       type: array
       nullable: true
+    row_count:
+      type: integer
+      description: Number of rows returned by the query.
     execution_time_ms:
       type: number
       nullable: true
@@ -199,26 +205,66 @@ observation_space:
         correctness: {type: number}
         efficiency: {type: number}
         step_penalty: {type: number}
+        row_coverage: {type: number, description: Fraction of expected rows matched}
+        column_coverage: {type: number, description: Fraction of expected columns present}
+        hint_penalty: {type: number, description: Accumulated hint penalty 0.0-0.3}
         explanation: {type: string}
     conversation_history:
       type: array
-      description: Last 5 steps with sql, error, reward, result_count.
-    query_analysis:
+      description: Last 5 steps with sql, error, reward, result_count, complexity.
+    query_complexity:
       type: object
       nullable: true
+      description: Structural complexity classifier (NEW in v3.0)
       properties:
+        label: {type: string, enum: [simple, moderate, complex, advanced]}
+        has_join: {type: boolean}
+        has_aggregation: {type: boolean}
+        has_window_function: {type: boolean}
+        has_cte: {type: boolean}
+        has_subquery: {type: boolean}
+        join_count: {type: integer}
+        subquery_depth: {type: integer}
+        complexity_score: {type: number, minimum: 0.0, maximum: 1.0}
+    performance_metrics:
+      type: object
+      nullable: true
+      description: EXPLAIN plan analysis with speedup metrics (NEW in v3.0)
+      properties:
+        execution_ms: {type: number}
+        baseline_ms: {type: number}
+        speedup_ratio: {type: number}
         scan_count: {type: integer}
+        index_count: {type: integer}
         uses_index: {type: boolean}
-        tables_scanned: {type: array}
-        plan_steps: {type: integer}
+        efficiency_score: {type: number}
         suggestion: {type: string}
     hint_available:
       type: boolean
     hints_used:
       type: integer
+    hint_penalty:
+      type: number
+      description: Cumulative hint penalty (0.0-0.3).
     step_count:
       type: integer
     max_steps:
       type: integer
     done:
       type: boolean
+    best_reward_so_far:
+      type: number
+      description: Highest reward achieved in this episode so far.
+    episode_summary:
+      type: object
+      nullable: true
+      description: Full analytics emitted when done=True (NEW in v3.0)
+      properties:
+        solved: {type: boolean}
+        termination_reason: {type: string, enum: [solved, max_steps]}
+        best_reward: {type: number}
+        total_steps: {type: integer}
+        improvement_rate: {type: number}
+        step_rewards: {type: array}
+        hints_used: {type: integer}
+        hint_penalty_total: {type: number}

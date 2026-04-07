@@ -160,137 +160,13 @@ def create_app() -> FastAPI:
 
     @app.get("/", tags=["meta"], response_class=HTMLResponse)
     async def homepage():
-        s = _global_stats
-        diff_colors = {
-            "easy": ("#166534","#86efac"),
-            "medium": ("#92400e","#fde68a"),
-            "hard": ("#7f1d1d","#fca5a5"),
-            "expert": ("#4c1d95","#c4b5fd"),
-        }
-        task_rows = ""
-        for t in TASKS.values():
-            scores = s["scores_by_task"].get(t.task_id, [])
-            avg = f"{sum(scores)/len(scores):.3f}" if scores else "—"
-            bg, fg = diff_colors.get(t.difficulty, ("#1e293b","#94a3b8"))
-            task_rows += f"""
-            <tr>
-              <td><code style="color:#a5f3fc">{t.task_id}</code></td>
-              <td><span style="background:{bg};color:{fg};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">{t.difficulty.upper()}</span></td>
-              <td style="color:#94a3b8">{t.max_steps}</td>
-              <td style="color:#94a3b8">{t.reward_threshold}</td>
-              <td style="color:#22c55e;font-weight:600">{avg}</td>
-              <td style="color:#64748b">{len(scores)}</td>
-            </tr>"""
-
-        html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>SQL Debug Environment v3.0</title>
-  <style>
-    *{{box-sizing:border-box;margin:0;padding:0}}
-    body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}}
-    a{{color:#60a5fa;text-decoration:none}}a:hover{{text-decoration:underline}}
-    .hero{{background:linear-gradient(135deg,#1e3a5f 0%,#0f172a 100%);padding:56px 40px;text-align:center;border-bottom:1px solid #1e40af}}
-    h1{{font-size:2.6rem;color:#60a5fa;margin-bottom:12px;font-weight:700}}
-    .sub{{font-size:1.05rem;color:#94a3b8;max-width:680px;margin:0 auto 24px;line-height:1.7}}
-    .badges{{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:8px}}
-    .badge{{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600}}
-    .bg{{background:#166534;color:#86efac}}.bb{{background:#1e3a8a;color:#93c5fd}}.bp{{background:#4c1d95;color:#c4b5fd}}.bo{{background:#7c2d12;color:#fed7aa}}
-    .container{{max-width:1100px;margin:0 auto;padding:36px 20px}}
-    .grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;margin-bottom:32px}}
-    .card{{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px}}
-    .card h3{{color:#60a5fa;margin-bottom:10px;font-size:1rem;font-weight:600}}
-    .stat{{font-size:2rem;font-weight:700;color:#f1f5f9}}
-    .stat-lbl{{color:#64748b;font-size:12px;margin-top:4px}}
-    .ep{{display:block;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:7px 12px;margin:5px 0;font-family:monospace;font-size:12px;color:#a5f3fc;text-decoration:none}}
-    .ep:hover{{border-color:#3b82f6;color:#60a5fa}}
-    .method{{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;margin-right:6px}}
-    .get{{background:#166534;color:#86efac}}.post{{background:#1e3a8a;color:#93c5fd}}
-    table{{width:100%;border-collapse:collapse}}
-    th{{background:#0f172a;color:#64748b;padding:9px 10px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}}
-    td{{padding:9px 10px;border-bottom:1px solid #1e293b;font-size:13px}}
-    tr:hover td{{background:#273548}}
-    .feat{{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid #1e293b;font-size:13px}}
-    .feat:last-child{{border-bottom:none}}
-    .feat-icon{{color:#22c55e;font-size:16px;margin-top:1px;flex-shrink:0}}
-    .feat-title{{color:#f1f5f9;font-weight:500}}
-    .feat-desc{{color:#64748b;font-size:12px;margin-top:2px}}
-    .footer{{text-align:center;padding:28px;color:#475569;font-size:12px;border-top:1px solid #1e293b;margin-top:20px}}
-    .live{{display:inline-block;width:8px;height:8px;background:#22c55e;border-radius:50%;margin-right:6px;animation:pulse 2s infinite}}
-    @keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.4}}}}
-  </style>
-</head>
-<body>
-<div class="hero">
-  <h1>SQL Debug Environment</h1>
-  <p class="sub">A real-world OpenEnv environment where AI agents learn to debug, fix, and optimize SQL queries against a realistic e-commerce database.</p>
-  <div class="badges">
-    <span class="badge bg"><span class="live"></span>Running v3.0.0</span>
-    <span class="badge bb">OpenEnv Compatible</span>
-    <span class="badge bp">8 Tasks · 4 Levels</span>
-    <span class="badge bo">Multi-turn Memory</span>
-    <span class="badge bp">Hint System</span>
-    <span class="badge bb">Curriculum Learning</span>
-  </div>
-</div>
-
-<div class="container">
-  <div class="grid">
-    <div class="card">
-      <h3>Live Stats</h3>
-      <div class="stat">{s["total_episodes"]}</div><div class="stat-lbl">Total Episodes</div>
-      <div class="stat" style="margin-top:14px">{s["total_steps"]}</div><div class="stat-lbl">Total Steps</div>
-      <div class="stat" style="margin-top:14px">{s["total_hints_used"]}</div><div class="stat-lbl">Hints Used</div>
-    </div>
-    <div class="card">
-      <h3>Advanced Features</h3>
-      <div class="feat"><div class="feat-icon">✓</div><div><div class="feat-title">Multi-turn Memory</div><div class="feat-desc">Agent sees full trajectory history in every observation</div></div></div>
-      <div class="feat"><div class="feat-icon">✓</div><div><div class="feat-title">3-Level Hint System</div><div class="feat-desc">Progressive hints with 10% reward penalty each</div></div></div>
-      <div class="feat"><div class="feat-icon">✓</div><div><div class="feat-title">EXPLAIN Analysis</div><div class="feat-desc">Query plan scan count and index usage in every response</div></div></div>
-      <div class="feat"><div class="feat-icon">✓</div><div><div class="feat-title">Curriculum Learning</div><div class="feat-desc">Auto-advance easy→medium→hard→expert on mastery</div></div></div>
-    </div>
-    <div class="card">
-      <h3>Quick Links</h3>
-      <a class="ep" href="/tester"><span class="method get">UI</span>/tester — Visual tester</a>
-      <a class="ep" href="/docs"><span class="method get">GET</span>/docs — Swagger UI</a>
-      <a class="ep" href="/tasks"><span class="method get">GET</span>/tasks — All tasks</a>
-      <a class="ep" href="/stats"><span class="method get">GET</span>/stats — Live stats</a>
-      <a class="ep" href="/leaderboard"><span class="method get">GET</span>/leaderboard — Leaderboard</a>
-      <a class="ep" href="/curriculum"><span class="method get">GET</span>/curriculum — Progress</a>
-      <a class="ep" href="/health"><span class="method get">GET</span>/health — Health check</a>
-    </div>
-  </div>
-
-  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:20px">
-    <div class="card" style="text-align:center"><div class="stat" style="font-size:1.6rem;color:#22c55e">2</div><div class="stat-lbl">Easy tasks</div></div>
-    <div class="card" style="text-align:center"><div class="stat" style="font-size:1.6rem;color:#f59e0b">3</div><div class="stat-lbl">Medium tasks</div></div>
-    <div class="card" style="text-align:center"><div class="stat" style="font-size:1.6rem;color:#ef4444">2</div><div class="stat-lbl">Hard tasks</div></div>
-    <div class="card" style="text-align:center"><div class="stat" style="font-size:1.6rem;color:#a78bfa">1</div><div class="stat-lbl">Expert tasks</div></div>
-  </div>
-
-  <div class="card">
-    <h3 style="margin-bottom:14px">All 8 Tasks</h3>
-    <table>
-      <tr><th>Task ID</th><th>Difficulty</th><th>Max Steps</th><th>Threshold</th><th>Avg Score</th><th>Episodes</th></tr>
-      {task_rows}
-    </table>
-  </div>
-</div>
-
-<div class="footer">
-  Built for <strong>Scaler × Meta PyTorch OpenEnv Hackathon 2026</strong> &nbsp;·&nbsp;
-  <a href="/tester">Visual Tester</a> &nbsp;·&nbsp;
-  <a href="/docs">API Docs</a> &nbsp;·&nbsp;
-  <a href="/leaderboard">Leaderboard</a>
-</div>
-</body>
-</html>"""
-        return HTMLResponse(content=html)
-
-    # =========================================================================
-    # VISUAL TESTER
-    # =========================================================================
+        """Stunning homepage with live stats, task cards, API reference, and reward visualization."""
+        hp = Path(__file__).parent / "homepage.html"
+        if hp.exists():
+            html = hp.read_text(encoding="utf-8")
+            return HTMLResponse(content=html)
+        # Fallback
+        return HTMLResponse(content="<h1>Homepage not found</h1>", status_code=404)
 
     @app.get("/tester", tags=["meta"], response_class=HTMLResponse)
     async def tester():
@@ -429,10 +305,15 @@ def create_app() -> FastAPI:
 
         Returns observation with:
           - reward (0.0–1.0)
-          - reward_breakdown (correctness, efficiency, step_penalty)
-          - conversation_history (last 5 steps)
-          - query_analysis (EXPLAIN plan summary)
-          - hint_available, hints_used
+          - reward_breakdown: total, correctness, efficiency, row_coverage, column_coverage, hint_penalty
+          - conversation_history: last 5 steps with SQL, error, reward, complexity
+          - query_complexity: simple/moderate/complex/advanced classifier
+          - performance_metrics: scan_count, uses_index, speedup_ratio, efficiency_score
+          - episode_summary: on done=True — best_reward, improvement_rate, termination_reason
+          - episode_id: UUID of current episode
+          - row_count: number of rows returned
+          - best_reward_so_far: highest reward this episode
+          - hint_available, hints_used, hint_penalty
         """
         try:
             obs = get_env().step(action=body.action)

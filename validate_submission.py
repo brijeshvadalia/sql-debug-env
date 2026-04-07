@@ -256,15 +256,33 @@ def main():
         check(f"obs has field: {field}", field in obs)
 
     advanced_obs_fields = [
-        "conversation_history", "query_analysis", "hint_available", "hints_used",
+        "conversation_history", "hint_available", "hints_used",
+        "episode_id", "row_count", "best_reward_so_far",
     ]
     for field in advanced_obs_fields:
         check(f"obs has advanced field: {field}", field in obs, critical=False)
 
+    v3_fields = ["query_complexity", "performance_metrics", "episode_summary"]
+    for field in v3_fields:
+        check(f"obs has v3 field: {field}", field in obs, critical=False)
+
     reward_bd = obs.get("reward_breakdown", {}) or {}
     for field in ["total", "correctness", "efficiency", "step_penalty", "explanation"]:
         check(f"reward_breakdown has: {field}", field in reward_bd)
+    for field in ["row_coverage", "column_coverage", "hint_penalty"]:
+        check(f"reward_breakdown v3: {field}", field in reward_bd, critical=False)
 
+    qc = obs.get("query_complexity") or {}
+    if qc:
+        for field in ["label", "has_join", "complexity_score"]:
+            check(f"query_complexity.{field}", field in qc, critical=False)
+
+    pm = obs.get("performance_metrics") or {}
+    if pm:
+        for field in ["execution_ms", "scan_count", "uses_index", "efficiency_score"]:
+            check(f"performance_metrics.{field}", field in pm, critical=False)
+
+    
     # ── 9. Docs endpoint ───────────────────────────────────────────────
     print("\n9. SWAGGER DOCS")
     try:

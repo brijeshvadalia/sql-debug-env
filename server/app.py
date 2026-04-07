@@ -276,7 +276,7 @@ def create_app() -> FastAPI:
     # =========================================================================
 
     @app.post("/reset", response_model=SQLObservation, tags=["openenv"])
-    async def reset(body: ResetRequest):
+    async def reset(body: Optional[ResetRequest] = None):
         """
         Reset the environment and start a new episode.
 
@@ -288,7 +288,8 @@ def create_app() -> FastAPI:
         """
         global _episode_history
         try:
-            obs = get_env().reset(task_id=body.task_id)
+            task_id = body.task_id if body else "fix_syntax_error"
+            obs = get_env().reset(task_id=task_id)
             _episode_history = []
             _global_stats["total_episodes"] += 1
             return obs

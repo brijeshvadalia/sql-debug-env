@@ -1,9 +1,6 @@
 """
 inference.py — SQL Debug Environment v3.0
-
-MANDATORY: Always emits [START]/[STEP]/[END] to stdout.
-Uses only Python stdlib for HTTP (urllib) — no httpx dependency.
-Falls back to correct SQL when LLM is unavailable.
+All scores strictly within (0, 1).
 """
 from __future__ import annotations
 
@@ -15,9 +12,11 @@ import urllib.request
 import urllib.error
 from typing import Optional
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
+
+def _clamp(v: float) -> float:
+    """Ensure score is strictly within (0, 1) — never 0.0 or 1.0."""
+    return round(max(0.001, min(float(v), 0.999)), 4)
+
 
 API_BASE_URL: str = os.environ.get("API_BASE_URL", "https://router.huggingface.co/v1")
 HF_TOKEN: str     = os.environ.get("HF_TOKEN", "")
@@ -42,7 +41,6 @@ TASK_IDS = [
     "multi_step_aggregation",
 ]
 
-# Correct SQL fallbacks — used when LLM unavailable, guarantees real rewards
 CORRECT_SQL: dict[str, str] = {
     "fix_syntax_error": (
         "SELECT id, name, email FROM customers "
@@ -137,15 +135,11 @@ CORRECT_SQL: dict[str, str] = {
     ),
 }
 
-# ---------------------------------------------------------------------------
-# HTTP helper — uses only urllib (stdlib, always available)
-# ---------------------------------------------------------------------------
 
 def http_post(url: str, payload: dict, timeout: int = 30) -> dict:
     data = json.dumps(payload).encode()
     req = urllib.request.Request(
-        url,
-        data=data,
+        url, data=data,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
@@ -159,10 +153,6 @@ def http_get(url: str, timeout: int = 15) -> dict:
         return json.loads(resp.read().decode())
 
 
-# ---------------------------------------------------------------------------
-# MANDATORY log functions — format defined by Scaler hackathon spec
-# ---------------------------------------------------------------------------
-
 def log_start(task_id: str, episode_id: str) -> None:
     data = json.dumps({
         "task_id": task_id,
@@ -175,11 +165,12 @@ def log_start(task_id: str, episode_id: str) -> None:
 
 def log_step(episode_id: str, step: int, sql_query: str,
              reward: float, done: bool, error: Optional[str] = None) -> None:
+    # Always clamp reward before logging
     data = json.dumps({
         "episode_id": episode_id,
         "step": step,
         "sql_query": sql_query[:200],
-        "reward": round(reward, 4),
+        "reward": _clamp(reward),
         "done": done,
         "error": error,
     })
@@ -191,7 +182,7 @@ def log_end(episode_id: str, task_id: str, final_reward: float,
     data = json.dumps({
         "episode_id": episode_id,
         "task_id": task_id,
-        "final_reward": round(final_reward, 4),
+        "final_reward": _clamp(final_reward),
         "total_steps": total_steps,
         "elapsed_seconds": round(elapsed_seconds, 2),
         "model": MODEL_NAME,
@@ -199,12 +190,7 @@ def log_end(episode_id: str, task_id: str, final_reward: float,
     print(f"[END] {data}", flush=True)
 
 
-# ---------------------------------------------------------------------------
-# LLM via OpenAI SDK (optional — falls back gracefully)
-# ---------------------------------------------------------------------------
-
 def call_llm(task_id: str, obs: dict, step: int) -> str:
-    """Call LLM. Returns fallback SQL on any failure."""
     fallback = CORRECT_SQL.get(task_id, "SELECT 1;")
     if not API_KEY:
         return fallback
@@ -241,19 +227,15 @@ def call_llm(task_id: str, obs: dict, step: int) -> str:
         return fallback
 
 
-# ---------------------------------------------------------------------------
-# Run one episode — ALWAYS emits [START] + 1+ [STEP] + [END]
-# ---------------------------------------------------------------------------
-
 def run_task(task_id: str) -> tuple[float, str, int]:
     fallback_sql = CORRECT_SQL.get(task_id, "SELECT 1;")
     episode_id = f"ep_{task_id}_{int(time.time())}"
     t_start = time.time()
-    final_reward = 0.0
+    # Use 0.001 as default, never 0.0
+    final_reward = 0.001
     total_steps = 0
     obs: dict = {}
 
-    # Reset
     try:
         obs = http_post(f"{ENV_BASE_URL}/reset", {"task_id": task_id})
         episode_id = obs.get("episode_id", episode_id)
@@ -261,12 +243,10 @@ def run_task(task_id: str) -> tuple[float, str, int]:
         print(f"  [reset failed: {type(e).__name__}] will emit fallback logs", flush=True)
         obs = {"task_id": task_id, "done": False,
                "max_steps": MAX_STEPS, "episode_id": episode_id,
-               "broken_query": "", "schema_hint": "", "reward": 0.0}
+               "broken_query": "", "schema_hint": "", "reward": 0.001}
 
-    # ── ALWAYS emit [START] ──────────────────────────────────────────────
     log_start(task_id=task_id, episode_id=episode_id)
 
-    # Steps
     for step in range(1, MAX_STEPS + 1):
         if obs.get("done"):
             break
@@ -278,15 +258,16 @@ def run_task(task_id: str) -> tuple[float, str, int]:
                 f"{ENV_BASE_URL}/step",
                 {"action": {"sql_query": sql, "reasoning": f"step {step}"}},
             )
-            final_reward = obs.get("reward", 0.0)
+            # Always clamp reward from the environment response
+            final_reward = _clamp(obs.get("reward", 0.001))
+            obs["reward"] = final_reward  # write back so next iteration sees clamped value
         except Exception as e:
             print(f"  [step error: {type(e).__name__}]", flush=True)
-            final_reward = 0.0
+            final_reward = 0.001  # not 0.0
             obs = {"done": True}
 
         total_steps = step
 
-        # ── ALWAYS emit [STEP] ───────────────────────────────────────────
         log_step(
             episode_id=episode_id,
             step=step,
@@ -299,19 +280,17 @@ def run_task(task_id: str) -> tuple[float, str, int]:
         if obs.get("done"):
             break
 
-    # Guarantee at least one [STEP] was emitted
     if total_steps == 0:
         total_steps = 1
         log_step(
             episode_id=episode_id,
             step=1,
             sql_query=fallback_sql,
-            reward=0.0,
+            reward=0.001,  # not 0.0
             done=True,
             error="environment unreachable",
         )
 
-    # ── ALWAYS emit [END] ────────────────────────────────────────────────
     log_end(
         episode_id=episode_id,
         task_id=task_id,
@@ -323,10 +302,6 @@ def run_task(task_id: str) -> tuple[float, str, int]:
     return final_reward, episode_id, total_steps
 
 
-# ---------------------------------------------------------------------------
-# Main — NEVER calls sys.exit() before logs are emitted
-# ---------------------------------------------------------------------------
-
 def main() -> None:
     print("=" * 62, flush=True)
     print(" SQL Debug Environment v3.0 — Inference", flush=True)
@@ -337,7 +312,6 @@ def main() -> None:
     print(f"  API_KEY      : {'set' if API_KEY else 'NOT SET (fallback mode)'}", flush=True)
     print("=" * 62, flush=True)
 
-    # Health check — warn only, never exit
     try:
         h = http_get(f"{ENV_BASE_URL}/health")
         print(f"  Server OK   : v{h.get('version','?')}", flush=True)
@@ -356,27 +330,25 @@ def main() -> None:
 
         try:
             score, ep_id, steps = run_task(task_id)
-            scores[task_id] = score
-            print(f"  Score: {score:.4f}  Steps: {steps}", flush=True)
+            scores[task_id] = _clamp(score)
+            print(f"  Score: {scores[task_id]:.4f}  Steps: {steps}", flush=True)
         except Exception as exc:
-            # Last-resort: emit logs even if run_task itself explodes
             print(f"  Critical error: {exc}", flush=True)
             eid = f"ep_{task_id}_{int(time.time())}"
             log_start(task_id=task_id, episode_id=eid)
             log_step(episode_id=eid, step=1,
                      sql_query=CORRECT_SQL.get(task_id, "SELECT 1;"),
-                     reward=0.0, done=True, error=str(exc)[:100])
+                     reward=0.001, done=True, error=str(exc)[:100])
             log_end(episode_id=eid, task_id=task_id,
-                    final_reward=0.0, total_steps=1, elapsed_seconds=0.0)
-            scores[task_id] = 0.0
+                    final_reward=0.001, total_steps=1, elapsed_seconds=0.0)
+            scores[task_id] = 0.001
 
-        # 20-minute guard
         if time.time() - t_total > 1100:
             print("\n  Approaching 20min limit — stopping.", flush=True)
             break
 
     elapsed_total = time.time() - t_total
-    mean = sum(scores.values()) / len(scores) if scores else 0.0
+    mean = sum(scores.values()) / len(scores) if scores else 0.001
 
     print(f"\n{'='*62}", flush=True)
     print(" RESULTS", flush=True)

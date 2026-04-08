@@ -6,7 +6,7 @@ Architecture:
   - Each grader computes: correctness + row_coverage + column_coverage
   - Hard grader adds: efficiency score with speedup ratio
   - Expert grader adds: schema validation (column names, data types)
-  - All graders: deterministic, non-sparse, bounded [0.0, 1.0]
+  - All graders: deterministic, non-sparse, bounded strictly (0, 1)
 
 Reward formula:
   easy   : correctness × step_penalty   (min 0.25 execution bonus)
@@ -21,6 +21,15 @@ from typing import Any, Optional
 
 from models import QueryComplexity, RewardBreakdown, PerformanceMetrics
 from server.tasks import Task
+
+
+# ---------------------------------------------------------------------------
+# Clamp — ensures every score is strictly within (0, 1)
+# ---------------------------------------------------------------------------
+
+def _clamp(v: float) -> float:
+    """Ensure score is strictly within (0, 1) — never 0.0 or 1.0."""
+    return round(max(0.001, min(v, 0.999)), 4)
 
 
 # ---------------------------------------------------------------------------
@@ -64,45 +73,46 @@ def _rows_equal(a: dict, b: dict, tol: float = 0.05) -> bool:
 def _row_coverage(result: list[dict], expected: list[dict]) -> float:
     """Fraction of expected rows found anywhere in result (unordered)."""
     if not expected:
-        return 1.0 if not result else 0.0
+        return 0.999 if not result else 0.001
     if not result:
-        return 0.0
+        return 0.001
     matched = sum(1 for exp in expected if any(_rows_equal(got, exp) for got in result))
-    return matched / len(expected)
+    raw = matched / len(expected)
+    return _clamp(raw)
 
 
 def _ordered_row_score(result: list[dict], expected: list[dict]) -> float:
     """Positional match: each row at correct index scores 1.0, elsewhere 0.5."""
     if not expected:
-        return 1.0 if not result else 0.0
+        return 0.999 if not result else 0.001
     if not result:
-        return 0.0
+        return 0.001
     score = 0.0
     for i, exp in enumerate(expected):
         if i < len(result) and _rows_equal(result[i], exp):
             score += 1.0
         elif any(_rows_equal(r, exp) for r in result):
             score += 0.5
-    return score / len(expected)
+    return _clamp(score / len(expected))
 
 
 def _column_coverage(result: list[dict], expected: list[dict]) -> float:
     """Fraction of expected column names present in result."""
     if not expected or not result:
-        return 0.0
+        return 0.001
     exp_cols = set(expected[0].keys())
     got_cols = set(result[0].keys())
     if not exp_cols:
-        return 1.0
-    return len(exp_cols & got_cols) / len(exp_cols)
+        return 0.999
+    return _clamp(len(exp_cols & got_cols) / len(exp_cols))
 
 
 def _row_count_score(result: list[dict], expected: list[dict]) -> float:
     """1.0 if row count matches exactly, decays with distance."""
     if not expected:
-        return 1.0
+        return 0.999
     diff = abs(len(result) - len(expected))
-    return max(0.0, 1.0 - diff / max(len(expected), 1))
+    return _clamp(max(0.0, 1.0 - diff / max(len(expected), 1)))
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +133,6 @@ def classify_query(sql: str) -> QueryComplexity:
     join_count = len(re.findall(r'\bJOIN\b', s))
     subquery_depth = s.count('SELECT') - 1
 
-    # Score: each feature adds weight
     score = (
         0.1 * has_join +
         0.15 * has_subquery +
@@ -219,28 +228,27 @@ def grade_easy(task: Task, error: Optional[str], result: Optional[list[dict]],
 
     if error:
         return RewardBreakdown(
-            total=0.05, correctness=0.0, step_penalty=penalty,
+            total=0.05, correctness=0.001, step_penalty=penalty,
             explanation=f"Syntax/runtime error: {error[:100]}")
 
     if not result:
         return RewardBreakdown(
-            total=0.05, correctness=0.0, step_penalty=penalty,
+            total=0.05, correctness=0.001, step_penalty=penalty,
             explanation="Query executed but returned no rows.")
 
     col_cov = _column_coverage(result, task.expected_result)
     row_cov = _ordered_row_score(result, task.expected_result)
 
-    # Execution bonus if query ran but got wrong answer
     if row_cov < 0.05:
         return RewardBreakdown(
-            total=0.25, correctness=0.0,
+            total=0.25, correctness=0.001,
             column_coverage=round(col_cov, 4),
-            row_coverage=0.0,
+            row_coverage=0.001,
             step_penalty=penalty,
             explanation=f"Query runs but result wrong. Columns present: {round(col_cov*100)}%")
 
     correctness = round(0.7 * row_cov + 0.3 * col_cov, 4)
-    total = round(min(correctness * penalty, 1.0), 4)
+    total = _clamp(correctness * penalty)
 
     return RewardBreakdown(
         total=total, correctness=correctness, step_penalty=penalty,
@@ -258,26 +266,24 @@ def grade_medium(task: Task, error: Optional[str], result: Optional[list[dict]],
 
     if error:
         return RewardBreakdown(
-            total=0.05, correctness=0.0, step_penalty=penalty,
+            total=0.05, correctness=0.001, step_penalty=penalty,
             explanation=f"Error: {error[:100]}")
 
     if not result:
         return RewardBreakdown(
-            total=0.05, correctness=0.0, step_penalty=penalty,
+            total=0.05, correctness=0.001, step_penalty=penalty,
             explanation="Empty result.")
 
     row_cov = _row_coverage(result, task.expected_result)
     col_cov = _column_coverage(result, task.expected_result)
     count_score = _row_count_score(result, task.expected_result)
 
-    # Weighted correctness: row match is primary signal
     correctness = round(0.6 * row_cov + 0.25 * col_cov + 0.15 * count_score, 4)
 
     if correctness < 0.05 and not error:
-        # Ran but entirely wrong
         total = 0.25
     else:
-        total = round(min(correctness * penalty, 1.0), 4)
+        total = _clamp(correctness * penalty)
 
     matched = round(row_cov * len(task.expected_result))
     return RewardBreakdown(
@@ -299,31 +305,30 @@ def grade_hard(task: Task, error: Optional[str], result: Optional[list[dict]],
 
     if error:
         return RewardBreakdown(
-            total=0.0, correctness=0.0, efficiency=0.0, step_penalty=penalty,
+            total=0.001, correctness=0.001, efficiency=0.001, step_penalty=penalty,
             explanation=f"Error: {error[:100]}")
 
     if not result:
         return RewardBreakdown(
-            total=0.05, correctness=0.0, efficiency=0.0, step_penalty=penalty,
+            total=0.05, correctness=0.001, efficiency=0.001, step_penalty=penalty,
             explanation="Empty result.")
 
     row_cov = _row_coverage(result, task.expected_result)
     col_cov = _column_coverage(result, task.expected_result)
     correctness = round(0.7 * row_cov + 0.3 * col_cov, 4)
 
-    # Efficiency: reward queries faster than baseline
-    efficiency = 0.0
+    efficiency = 0.001
     speedup = 0.0
     if perf and perf.efficiency_score > 0:
-        efficiency = perf.efficiency_score
+        efficiency = _clamp(perf.efficiency_score)
         speedup = perf.speedup_ratio
     elif exec_ms and exec_ms > 0 and task.baseline_exec_ms > 0:
         if exec_ms < task.baseline_exec_ms:
             speedup = round(task.baseline_exec_ms / exec_ms, 2)
-            efficiency = min(round(speedup / 5.0, 4), 1.0)
+            efficiency = _clamp(min(round(speedup / 5.0, 4), 1.0))
 
     combined = round(0.6 * correctness + 0.4 * efficiency, 4)
-    total = round(min(combined * penalty, 1.0), 4)
+    total = _clamp(combined * penalty)
 
     return RewardBreakdown(
         total=total, correctness=correctness, efficiency=efficiency,
@@ -344,31 +349,30 @@ def grade_expert(task: Task, error: Optional[str], result: Optional[list[dict]],
 
     if error:
         return RewardBreakdown(
-            total=0.0, correctness=0.0, step_penalty=penalty,
+            total=0.001, correctness=0.001, step_penalty=penalty,
             explanation=f"Error: {error[:100]}")
 
     if not result:
         return RewardBreakdown(
-            total=0.05, correctness=0.0, step_penalty=penalty,
+            total=0.05, correctness=0.001, step_penalty=penalty,
             explanation="Empty result.")
 
     row_cov = _row_coverage(result, task.expected_result)
     col_cov = _column_coverage(result, task.expected_result)
-    count_exact = 1.0 if len(result) == len(task.expected_result) else 0.0
+    count_exact = 0.999 if len(result) == len(task.expected_result) else 0.001
 
-    # Expert: strict on column names, row values, and exact count
     correctness = round(0.5 * row_cov + 0.3 * col_cov + 0.2 * count_exact, 4)
 
     if correctness < 0.05 and not error:
         total = 0.25
     else:
-        total = round(min(correctness * penalty, 1.0), 4)
+        total = _clamp(correctness * penalty)
 
     return RewardBreakdown(
         total=total, correctness=correctness, step_penalty=penalty,
         row_coverage=round(row_cov, 4), column_coverage=round(col_cov, 4),
         explanation=(f"Expert: rows={row_cov:.2f} cols={col_cov:.2f} "
-                     f"count_exact={count_exact:.0f} penalty={penalty:.2f}"))
+                     f"count_exact={count_exact:.3f} penalty={penalty:.2f}"))
 
 
 # ---------------------------------------------------------------------------
@@ -388,7 +392,7 @@ def grade(task: Task, error: Optional[str], result: Optional[list[dict]],
         return grade_hard(task, error, result, exec_ms, step_count, perf, sql)
     elif task.difficulty == "expert":
         return grade_expert(task, error, result, step_count, sql)
-    return RewardBreakdown(total=0.0, explanation=f"Unknown difficulty: {task.difficulty}")
+    return RewardBreakdown(total=0.001, explanation=f"Unknown difficulty: {task.difficulty}")
 
 
 __all__ = [

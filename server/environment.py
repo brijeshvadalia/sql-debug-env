@@ -1,16 +1,5 @@
 """
 server/environment.py — Advanced SQLDebugEnvironment v3.0
-
-Architecture improvements:
-  - QueryComplexity classifier on every step
-  - PerformanceMetrics: full EXPLAIN plan with speedup ratio
-  - EpisodeSummary: analytics report on done=True
-  - episode_id exposed in every observation
-  - best_reward tracking per episode
-  - improvement_rate calculation
-  - hint_penalty propagated through reward AND tracked in state
-  - Thread-safe write lock, read-only EXPLAIN uses separate connection path
-  - Curriculum: mastery threshold configurable, multiple metrics tracked
 """
 from __future__ import annotations
 
@@ -34,6 +23,12 @@ logger = logging.getLogger(__name__)
 _SEED_PATH = Path(__file__).parent / "db" / "seed.sql"
 _MAX_RESULT_ROWS = 20
 _CONV_HISTORY_SIZE = 5
+
+
+def _clamp(v: float) -> float:
+    """Ensure score is strictly within (0, 1) — never 0.0 or 1.0."""
+    return round(max(0.001, min(float(v), 0.999)), 4)
+
 
 # ---------------------------------------------------------------------------
 # Curriculum
@@ -139,18 +134,6 @@ class ConversationTurn:
 # ---------------------------------------------------------------------------
 
 class SQLDebugEnvironment:
-    """
-    Advanced OpenEnv-compatible SQL debugging environment.
-
-    Per-episode features:
-      - Structured EXPLAIN plan analysis on every step
-      - QueryComplexity classifier (simple/moderate/complex/advanced)
-      - EpisodeSummary analytics on termination
-      - best_reward and improvement_rate tracking
-      - Hint penalty propagated accurately through grade()
-      - episode_id exposed in every observation
-      - Thread-safe SQLite with WAL mode
-    """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -158,16 +141,13 @@ class SQLDebugEnvironment:
         self._state = SQLState()
         self._current_task: Optional[Task] = None
 
-        # Episode tracking
         self._conversation: list[ConversationTurn] = []
         self._step_rewards: list[float] = []
-        self._best_reward: float = 0.0
+        self._best_reward: float = 0.001
 
-        # Hint state
         self._hints_used: int = 0
         self._hint_penalty: float = 0.0
 
-        # Curriculum
         self._curriculum_scores: dict[str, list[float]] = {t: [] for t in CURRICULUM_ORDER}
         self._curriculum_index: int = 0
 
@@ -182,13 +162,12 @@ class SQLDebugEnvironment:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA foreign_keys = ON")
-        conn.execute("PRAGMA cache_size = -8000")  # 8MB cache
+        conn.execute("PRAGMA cache_size = -8000")
         conn.executescript(_SEED_PATH.read_text())
         conn.commit()
         return conn
 
     def _execute(self, sql: str) -> tuple[Optional[list[dict]], Optional[str], float]:
-        """Execute SQL, return (rows, error, exec_ms)."""
         with self._lock:
             t0 = time.perf_counter()
             try:
@@ -214,7 +193,7 @@ class SQLDebugEnvironment:
         self._current_task = TASKS[task_id]
         self._conversation = []
         self._step_rewards = []
-        self._best_reward = 0.0
+        self._best_reward = 0.001
         self._hints_used = 0
         self._hint_penalty = 0.0
 
@@ -237,7 +216,7 @@ class SQLDebugEnvironment:
             hints_used=0,
             hint_penalty=0.0,
             max_steps=self._current_task.max_steps,
-            best_reward_so_far=0.0,
+            best_reward_so_far=0.001,
         )
 
     def step(self, action: SQLAction) -> SQLObservation:
@@ -249,13 +228,9 @@ class SQLDebugEnvironment:
         task = self._current_task
         task_id = task.task_id
 
-        # Execute query
         rows, error, exec_ms = self._execute(action.sql_query)
-
-        # Classify query complexity
         complexity = classify_query(action.sql_query)
 
-        # Build performance metrics via EXPLAIN
         perf: Optional[PerformanceMetrics] = None
         if not error:
             try:
@@ -272,33 +247,32 @@ class SQLDebugEnvironment:
                     suggestion="Plan unavailable.",
                 )
 
-        # Grade
         reward_bd = grade(
             task=task, error=error, result=rows,
             exec_ms=exec_ms, step_count=step,
             perf=perf, sql=action.sql_query,
         )
 
-        # Apply hint penalty
+        # Apply hint penalty — clamp result to strictly (0, 1)
         if self._hint_penalty > 0:
             raw = reward_bd.total
-            reward_bd.total = max(0.0, round(raw * (1.0 - self._hint_penalty), 4))
-            reward_bd.hint_penalty = self._hint_penalty
+            penalised = round(raw * (1.0 - self._hint_penalty), 4)
+            reward_bd.total = _clamp(penalised)
+            reward_bd.hint_penalty = _clamp(self._hint_penalty)
             reward_bd.explanation += f" | hint_penalty={self._hint_penalty:.0%}"
 
+        # Ensure total is always strictly (0, 1)
+        reward_bd.total = _clamp(reward_bd.total)
         final_reward = reward_bd.total
 
-        # Track best reward
-        self._best_reward = max(self._best_reward, final_reward)
+        self._best_reward = _clamp(max(self._best_reward, final_reward))
         self._step_rewards.append(final_reward)
 
-        # Done check
         done = (
             final_reward >= task.reward_threshold
             or step >= task.max_steps
         )
 
-        # Termination reason
         if final_reward >= task.reward_threshold:
             term_reason = "solved"
         elif step >= task.max_steps:
@@ -306,7 +280,6 @@ class SQLDebugEnvironment:
         else:
             term_reason = ""
 
-        # Conversation turn
         turn = ConversationTurn(
             step=step, sql=action.sql_query,
             reasoning=action.reasoning, error=error,
@@ -317,7 +290,6 @@ class SQLDebugEnvironment:
         )
         self._conversation.append(turn)
 
-        # Update state
         self._state.done = done
         self._state.last_reward = final_reward
         self._state.best_reward = self._best_reward
@@ -327,11 +299,9 @@ class SQLDebugEnvironment:
         self._state.hints_used = self._hints_used
         self._state.hint_penalty = self._hint_penalty
 
-        # Update curriculum
         if done and task_id in self._curriculum_scores:
             self._curriculum_scores[task_id].append(final_reward)
 
-        # Improvement rate
         improvement_rate = 0.0
         if len(self._step_rewards) >= 2:
             improvements = [
@@ -340,7 +310,6 @@ class SQLDebugEnvironment:
             ]
             improvement_rate = round(sum(improvements) / len(improvements), 4)
 
-        # Build episode summary on done
         episode_summary: Optional[EpisodeSummary] = None
         if done:
             episode_summary = EpisodeSummary(
@@ -377,7 +346,7 @@ class SQLDebugEnvironment:
             row_count=len(rows) if rows else 0,
             execution_time_ms=round(exec_ms, 3),
             performance_metrics=perf,
-            query_analysis=perf,          # backward compat alias
+            query_analysis=perf,
             query_complexity=complexity,
             reward=final_reward,
             reward_breakdown=reward_bd,

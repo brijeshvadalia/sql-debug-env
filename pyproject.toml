@@ -38,6 +38,7 @@ dependencies = [
 
     # OpenAI-compatible client (mandatory per hackathon spec)
     "openai>=1.30.0",
+    "openenv-core>=0.2.0",
 
     # Optional web UI
     "gradio>=4.36.0",
@@ -52,7 +53,8 @@ dev = [
 ]
 
 [project.scripts]
-sql-debug-env = "server.app:app"
+sql-debug-env = "server.app:main"
+server = "server.app:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]

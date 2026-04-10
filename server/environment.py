@@ -161,7 +161,7 @@ class SQLDebugEnvironment:
         # Episode tracking
         self._conversation: list[ConversationTurn] = []
         self._step_rewards: list[float] = []
-        self._best_reward: float = 0.0
+        self._best_reward: float = 0.01
 
         # Hint state
         self._hints_used: int = 0
@@ -214,7 +214,7 @@ class SQLDebugEnvironment:
         self._current_task = TASKS[task_id]
         self._conversation = []
         self._step_rewards = []
-        self._best_reward = 0.0
+        self._best_reward = 0.01
         self._hints_used = 0
         self._hint_penalty = 0.0
 
@@ -237,7 +237,7 @@ class SQLDebugEnvironment:
             hints_used=0,
             hint_penalty=0.0,
             max_steps=self._current_task.max_steps,
-            best_reward_so_far=0.0,
+            best_reward_so_far=0.01,
         )
 
     def step(self, action: SQLAction) -> SQLObservation:
@@ -282,7 +282,7 @@ class SQLDebugEnvironment:
         # Apply hint penalty
         if self._hint_penalty > 0:
             raw = reward_bd.total
-            reward_bd.total = max(0.0, round(raw * (1.0 - self._hint_penalty), 4))
+            reward_bd.total = max(0.01, round(raw * (1.0 - self._hint_penalty), 4))
             reward_bd.hint_penalty = self._hint_penalty
             reward_bd.explanation += f" | hint_penalty={self._hint_penalty:.0%}"
 
@@ -332,7 +332,7 @@ class SQLDebugEnvironment:
             self._curriculum_scores[task_id].append(final_reward)
 
         # Improvement rate
-        improvement_rate = 0.0
+        improvement_rate = 0.01
         if len(self._step_rewards) >= 2:
             improvements = [
                 max(0.0, self._step_rewards[i] - self._step_rewards[i-1])

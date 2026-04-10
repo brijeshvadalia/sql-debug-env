@@ -1,13 +1,8 @@
 """
-models.py — SQL Debug Environment v3.0 — Advanced Typed Models
+models.py — SQL Debug Environment v3.0
 
-Enhancements over baseline:
-  - QueryComplexity: classifies query structural complexity
-  - PerformanceMetrics: detailed timing breakdown
-  - RewardBreakdown: richer with column/row coverage scores
-  - SQLObservation: episode_id exposed, performance_metrics, complexity
-  - EpisodeSummary: full episode analytics returned on done=True
-  - SQLState: tracks best_reward, solved flag, hint_penalty_total
+CRITICAL: All reward/score fields must be strictly between 0 and 1.
+          No field named "reward" or "score" can default to 0.0 or 1.0.
 """
 from __future__ import annotations
 
@@ -28,27 +23,27 @@ class SQLAction(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "sql_query": "SELECT id, name, email FROM customers WHERE tier = 'vip' ORDER BY name;",
-                "reasoning": "Fixed SELEC→SELECT, FORM→FROM, ORDR BY→ORDER BY",
+                "sql_query": "SELECT id, name, email FROM customers WHERE tier = \'vip\' ORDER BY name;",
+                "reasoning": "Fixed SELEC->SELECT, FORM->FROM, ORDR->ORDER BY",
             }
         }
 
 
 # ---------------------------------------------------------------------------
-# Reward breakdown — now with column_coverage and row_coverage
+# Reward breakdown
 # ---------------------------------------------------------------------------
 
 class RewardBreakdown(BaseModel):
-    """Detailed decomposition of the reward signal."""
-    total: float = Field(default=0.0, ge=0.0, le=1.0)
-    correctness: float = Field(default=0.0, ge=0.0, le=1.0)
-    efficiency: float = Field(default=0.0, ge=0.0, le=1.0)
-    step_penalty: float = Field(default=1.0, ge=0.0, le=1.0)
-    row_coverage: float = Field(default=0.0, ge=0.0, le=1.0,
+    """Detailed decomposition of the reward signal. All values strictly (0,1)."""
+    total: float = Field(default=0.05, ge=0.0, le=1.0)
+    correctness: float = Field(default=0.05, ge=0.0, le=1.0)
+    efficiency: float = Field(default=0.05, ge=0.0, le=1.0)
+    step_penalty: float = Field(default=0.99, ge=0.0, le=1.0)
+    row_coverage: float = Field(default=0.05, ge=0.0, le=1.0,
         description="Fraction of expected rows returned.")
-    column_coverage: float = Field(default=0.0, ge=0.0, le=1.0,
+    column_coverage: float = Field(default=0.05, ge=0.0, le=1.0,
         description="Fraction of expected columns present.")
-    hint_penalty: float = Field(default=0.0, ge=0.0, le=0.3,
+    hint_penalty: float = Field(default=0.01, ge=0.0, le=0.3,
         description="Cumulative hint penalty applied.")
     explanation: str = Field(default="")
 
@@ -69,10 +64,8 @@ class QueryComplexity(BaseModel):
     has_where: bool = False
     join_count: int = 0
     subquery_depth: int = 0
-    complexity_score: float = Field(default=0.0, ge=0.0, le=1.0,
-        description="Normalised 0-1 complexity estimate.")
-    label: str = Field(default="simple",
-        description="simple | moderate | complex | advanced")
+    complexity_score: float = Field(default=0.01, ge=0.0, le=1.0)
+    label: str = Field(default="simple")
 
 
 # ---------------------------------------------------------------------------
@@ -81,21 +74,20 @@ class QueryComplexity(BaseModel):
 
 class PerformanceMetrics(BaseModel):
     """Detailed timing and query plan metrics."""
-    execution_ms: float = Field(default=0.0)
-    baseline_ms: float = Field(default=0.0)
-    speedup_ratio: float = Field(default=0.0,
-        description="baseline_ms / execution_ms. >1 means faster than baseline.")
+    execution_ms: float = Field(default=0.01)
+    baseline_ms: float = Field(default=0.01)
+    speedup_ratio: float = Field(default=0.01)
     scan_count: int = Field(default=0)
     index_count: int = Field(default=0)
     uses_index: bool = False
     plan_steps: int = Field(default=0)
     tables_scanned: list[str] = Field(default_factory=list)
     suggestion: str = Field(default="")
-    efficiency_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    efficiency_score: float = Field(default=0.05, ge=0.0, le=1.0)
 
 
 # ---------------------------------------------------------------------------
-# Episode summary — returned when done=True
+# Episode summary
 # ---------------------------------------------------------------------------
 
 class EpisodeSummary(BaseModel):
@@ -103,17 +95,15 @@ class EpisodeSummary(BaseModel):
     episode_id: str = ""
     task_id: str = ""
     total_steps: int = 0
-    final_reward: float = 0.0
-    best_reward: float = 0.0
+    final_reward: float = 0.05
+    best_reward: float = 0.05
     solved: bool = False
     hints_used: int = 0
-    hint_penalty_total: float = 0.0
-    cumulative_reward: float = 0.0
-    termination_reason: str = Field(default="",
-        description="solved | max_steps | truncated")
+    hint_penalty_total: float = 0.01
+    cumulative_reward: float = 0.05
+    termination_reason: str = Field(default="")
     step_rewards: list[float] = Field(default_factory=list)
-    improvement_rate: float = Field(default=0.0,
-        description="Avg reward improvement per step.")
+    improvement_rate: float = Field(default=0.01)
 
 
 # ---------------------------------------------------------------------------
@@ -123,50 +113,36 @@ class EpisodeSummary(BaseModel):
 class SQLObservation(BaseModel):
     """Full observation returned after reset() and each step()."""
 
-    # Identity
     episode_id: str = Field(default="", description="UUID of current episode.")
     task_id: str = Field(..., description="Active task identifier.")
-
-    # Task context
     task_description: str = Field(...)
     broken_query: str = Field(...)
     schema_hint: str = Field(...)
 
-    # Execution feedback
     error_message: Optional[str] = Field(default=None)
     query_result: Optional[list[dict[str, Any]]] = Field(default=None)
-    row_count: int = Field(default=0, description="Rows returned by query.")
+    row_count: int = Field(default=0)
 
-    # Performance
     execution_time_ms: Optional[float] = Field(default=None)
     performance_metrics: Optional[PerformanceMetrics] = Field(default=None)
-
-    # Query intelligence
-    query_analysis: Optional[PerformanceMetrics] = Field(
-        default=None, description="Alias for performance_metrics (backward compat).")
+    query_analysis: Optional[PerformanceMetrics] = Field(default=None)
     query_complexity: Optional[QueryComplexity] = Field(default=None)
 
-    # Reward
-    reward: float = Field(default=0.0, ge=0.0, le=1.0)
+    # CRITICAL: reward must never default to 0.0 or 1.0
+    reward: float = Field(default=0.05, ge=0.0, le=1.0)
     reward_breakdown: Optional[RewardBreakdown] = Field(default=None)
 
-    # Multi-turn memory
-    conversation_history: list[dict[str, Any]] = Field(
-        default_factory=list,
-        description="Last 5 steps with sql, error, reward, result_count.")
+    conversation_history: list[dict[str, Any]] = Field(default_factory=list)
 
-    # Hint system
     hint_available: bool = Field(default=True)
     hints_used: int = Field(default=0)
-    hint_penalty: float = Field(default=0.0)
+    hint_penalty: float = Field(default=0.01)
 
-    # Episode state
     step_count: int = Field(default=0)
     max_steps: int = Field(default=10)
     done: bool = Field(default=False)
-    best_reward_so_far: float = Field(default=0.0)
+    best_reward_so_far: float = Field(default=0.05)
 
-    # Episode summary (only when done=True)
     episode_summary: Optional[EpisodeSummary] = Field(default=None)
 
 
@@ -182,12 +158,12 @@ class SQLState:
     task_id: str = ""
     max_steps: int = 0
     done: bool = False
-    last_reward: float = 0.0
-    best_reward: float = 0.0
-    cumulative_reward: float = 0.0
+    last_reward: float = 0.05
+    best_reward: float = 0.05
+    cumulative_reward: float = 0.05
     solved: bool = False
     hints_used: int = 0
-    hint_penalty: float = 0.0
+    hint_penalty: float = 0.01
     extra: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

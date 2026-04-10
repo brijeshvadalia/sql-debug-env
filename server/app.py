@@ -214,9 +214,9 @@ def create_app() -> FastAPI:
         for tid, scores in s["scores_by_task"].items():
             by_task[tid] = {
                 "episodes": len(scores),
-                "avg_score": round(sum(scores) / len(scores), 4) if scores else 0.0,
-                "best_score": round(max(scores), 4) if scores else 0.0,
-                "worst_score": round(min(scores), 4) if scores else 0.0,
+                "avg_score": round(sum(scores) / len(scores), 4) if scores else 0.05,
+                "best_score": round(max(scores), 4) if scores else 0.05,
+                "worst_score": round(min(scores), 4) if scores else 0.05,
             }
         return {
             "total_episodes": s["total_episodes"],
@@ -242,7 +242,7 @@ def create_app() -> FastAPI:
         s = _global_stats
         task_scores = s["scores_by_task"]
         all_scores = [sc for scores in task_scores.values() for sc in scores]
-        session_avg = round(sum(all_scores) / len(all_scores), 4) if all_scores else 0.0
+        session_avg = round(sum(all_scores) / len(all_scores), 4) if all_scores else 0.05
 
         current_session = {
             "model_name": "current_session",
@@ -437,15 +437,15 @@ def create_app() -> FastAPI:
                 obs = get_env().step(SQLAction(sql_query=sql, reasoning=reasoning))
                 results[task_id] = {
                     "reward": obs.reward,
-                    "correctness": obs.reward_breakdown.correctness if obs.reward_breakdown else 0.0,
+                    "correctness": obs.reward_breakdown.correctness if obs.reward_breakdown else 0.05,
                     "error": obs.error_message,
                     "rows": len(obs.query_result) if obs.query_result else 0,
                 }
             except Exception as exc:
-                results[task_id] = {"error": str(exc), "reward": 0.0}
+                results[task_id] = {"error": str(exc), "reward": 0.05}
 
         get_env().reset(task_id=current_task_id)
-        scores = [v.get("reward", 0.0) for v in results.values()]
+        scores = [v.get("reward", 0.05) for v in results.values()]
         return {
             "sql_query": sql,
             "results_by_task": results,

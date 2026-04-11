@@ -235,7 +235,7 @@ class SQLDebugEnvironment:
             conversation_history=[],
             hint_available=True,
             hints_used=0,
-            hint_penalty=0.0,
+            hint_penalty=0.01,
             max_steps=self._current_task.max_steps,
             best_reward_so_far=0.01,
         )

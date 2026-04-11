@@ -35,12 +35,20 @@ def _strict(score: float) -> float:
 
 # ---------------------------------------------------------------------------
 # Step penalty: smooth decay 0.99 -> 0.70 across steps
+# CRITICAL FIX: capped at 0.99 — must NEVER return 1.0 (step=1 bug)
 # ---------------------------------------------------------------------------
 
 def _step_penalty(step: int, max_steps: int) -> float:
+    """
+    Returns a step penalty in (0, 1) exclusive.
+    At step=1: returns 0.99 (not 1.0 — validator rejects exact 1.0).
+    Decays smoothly to 0.70 by the final step.
+    """
     if max_steps <= 1:
         return 0.99
-    return max(0.70, 1.0 - 0.3 * ((step - 1) / max_steps))
+    raw = 1.0 - 0.3 * ((step - 1) / max_steps)
+    # CRITICAL: clamp to [0.70, 0.99] — never 1.0, never below 0.70
+    return round(max(0.70, min(0.99, raw)), 4)
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +172,7 @@ def analyse_query_plan(conn, sql: str, baseline_ms: float = 0.0,
         index_count = sum(1 for d in details if "INDEX" in d.upper())
         speedup = (round(baseline_ms / exec_ms, 2)
                    if exec_ms > 0 and baseline_ms > 0 else 0.0)
-        efficiency = 0.0
+        efficiency = 0.05
         if exec_ms > 0 and baseline_ms > 0 and exec_ms < baseline_ms:
             efficiency = _strict(speedup / 5.0)
         suggestion = (
